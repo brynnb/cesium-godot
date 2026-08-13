@@ -14,8 +14,6 @@ to both projects and their contributors for the foundations of this work.
 Cesium for Godot is an independent project. It is not an official
 Cesium GS or Godot Engine product and is not endorsed by either organization.
 
-![3D Tiles rendered in Godot](readme_resources/NYC_Screenshot.png)
-
 ## Features
 
 - Runtime streaming of 3D Tiles 1.0 and 1.1 content with Cesium Native's
