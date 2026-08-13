@@ -8,8 +8,7 @@ focused on a capable, reusable runtime integration for Godot. It is largely unte
 This project builds on
 [3D Tiles for Godot](https://github.com/Battle-Road-Labs/3D-Tiles-For-Godot)
 and adapts architecture and runtime behavior from
-[Cesium for Unreal](https://github.com/CesiumGS/cesium-unreal). We are grateful
-to both projects and their contributors for the foundations of this work.
+[Cesium for Unreal](https://github.com/CesiumGS/cesium-unreal).
 
 Cesium for Godot is an independent project. It is not an official
 Cesium GS or Godot Engine product and is not endorsed by either organization.
