@@ -100,6 +100,12 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertIn("-disableMetrics", bootstrap)
         self.assertIn('"version"', bootstrap)
 
+    def test_linux_static_archive_uses_a_response_file_when_needed(self) -> None:
+        orchestrator = (ROOT / "SConstruct.py").read_text(encoding="utf-8")
+        self.assertIn('if env["platform"] == "linux":', orchestrator)
+        self.assertIn('env["ARCOM_RESPONSE"] = env["ARCOM"]', orchestrator)
+        self.assertIn('env["ARCOM"] = "${TEMPFILE(ARCOM_RESPONSE)}"', orchestrator)
+
 
 if __name__ == "__main__":
     unittest.main()
