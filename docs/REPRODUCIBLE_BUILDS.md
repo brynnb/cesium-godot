@@ -19,6 +19,11 @@ python3 -m pip install scons==4.8.1 cmake==3.31.6 ninja==1.12.1
 python3 tools/build_extension.py --jobs 12
 ```
 
+PyPI does not publish Ninja 1.12.1 for Apple Silicon. The macOS CI job instead
+downloads Ninja's official `ninja-mac.zip` release and verifies its pinned
+SHA-256 before use. Local macOS builds may install the same 1.12.1 release by
+any trusted method.
+
 The wrapper verifies every locked input, provisions missing sources, builds
 Cesium Native out of source, and builds the release GDExtension. Useful
 variants are:
