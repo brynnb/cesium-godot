@@ -1,0 +1,22 @@
+{
+  "asset": { "version": "1.1" },
+  "extensionsUsed": ["3DTILES_bounding_volume_cylinder"],
+  "extensionsRequired": ["3DTILES_bounding_volume_cylinder"],
+  "geometricError": 0,
+  "root": {
+    "boundingVolume": {
+      "extensions": {
+        "3DTILES_bounding_volume_cylinder": {
+          "minRadius": 10,
+          "maxRadius": 50,
+          "height": 120,
+          "minAngle": -1.25,
+          "maxAngle": 0.75,
+          "translation": [100, 200, 300],
+          "rotation": [0, 0, 0, 1]
+        }
+      }
+    },
+    "geometricError": 0
+  }
+}

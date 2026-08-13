@@ -1,0 +1,4 @@
+# Mail-formatted patches contain space-prefixed blank context lines and a
+# space-terminated signature separator by design. Treat them as patch data
+# instead of reporting those required bytes as source whitespace errors.
+dependencies/cesium-native-patches/*.patch -whitespace

@@ -1,0 +1,425 @@
+[gd_scene load_steps=17 format=3 uid="uid://cvqjpxi8g18cp"]
+
+[ext_resource type="Texture2D" uid="uid://co5ge17rw2ant" path="res://addons/cesium_godot/resources/icons/cloud-upload.svg" id="1_fboin"]
+[ext_resource type="Texture2D" uid="uid://hiailyk0q8lq" path="res://addons/cesium_godot/panels/ion_logo.svg" id="1_ldapw"]
+[ext_resource type="Texture2D" uid="uid://cqn61pvewdlmy" path="res://addons/cesium_godot/resources/icons/plus.svg" id="1_u036t"]
+[ext_resource type="Texture2D" uid="uid://3gtwda5rbxte" path="res://addons/cesium_godot/resources/icons/key-round.svg" id="2_rt3xi"]
+[ext_resource type="Texture2D" uid="uid://vr8daaccrhkl" path="res://addons/cesium_godot/resources/icons/cable.svg" id="3_44dw4"]
+[ext_resource type="Texture2D" uid="uid://bjv8ufr2msp7t" path="res://addons/cesium_godot/resources/icons/graduation-cap.svg" id="3_pnwcj"]
+[ext_resource type="Texture2D" uid="uid://c1mt0ug5q6m6h" path="res://addons/cesium_godot/resources/icons/unplug.svg" id="3_xprf4"]
+[ext_resource type="Texture2D" uid="uid://3o13u2ec1wix" path="res://addons/cesium_godot/resources/icons/message-circle-question-mark.svg" id="4_olonh"]
+[ext_resource type="Texture2D" uid="uid://ciubm6nmhu66r" path="res://addons/cesium_godot/resources/icons/log-out.svg" id="5_ssxnk"]
+[ext_resource type="Texture2D" uid="uid://b2xeutb5rxcb" path="res://addons/cesium_godot/resources/icons/video.svg" id="6_rt3xi"]
+[ext_resource type="Texture2D" uid="uid://slorqhs2cyi3" path="res://addons/cesium_godot/resources/icons/box.svg" id="7_pnwcj"]
+[ext_resource type="Texture2D" uid="uid://cjv0khhek8lnr" path="res://addons/cesium_godot/resources/icons/square-arrow-out-up-right.svg" id="8_olonh"]
+[ext_resource type="Texture2D" uid="uid://ce5n71lekhg88" path="res://addons/cesium_godot/resources/icons/orbit.svg" id="8_ssxnk"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_h2mxq"]
+font_size = 24
+
+[sub_resource type="LabelSettings" id="LabelSettings_pnwcj"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_u036t"]
+font_size = 12
+
+[node name="Cesium Ion Panel" type="MarginContainer"]
+custom_minimum_size = Vector2(100, 100)
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 454.0
+grow_vertical = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="ScrollContainer" type="ScrollContainer" parent="."]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="VSplitContainer" type="VBoxContainer" parent="ScrollContainer"]
+layout_mode = 2
+
+[node name="ButtonsHContainer" type="HBoxContainer" parent="ScrollContainer/VSplitContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="AddButton" type="Button" parent="ScrollContainer/VSplitContainer/ButtonsHContainer"]
+visible = false
+layout_mode = 2
+text = "Add"
+
+[node name="UploadButton" type="Button" parent="ScrollContainer/VSplitContainer/ButtonsHContainer"]
+layout_mode = 2
+text = "Upload"
+icon = ExtResource("1_fboin")
+alignment = 0
+
+[node name="TokenButton" type="Button" parent="ScrollContainer/VSplitContainer/ButtonsHContainer"]
+layout_mode = 2
+text = "Token"
+icon = ExtResource("2_rt3xi")
+
+[node name="LearnButton" type="Button" parent="ScrollContainer/VSplitContainer/ButtonsHContainer"]
+layout_mode = 2
+text = "Learn	"
+icon = ExtResource("3_pnwcj")
+
+[node name="HelpButton" type="Button" parent="ScrollContainer/VSplitContainer/ButtonsHContainer"]
+layout_mode = 2
+text = "Help"
+icon = ExtResource("4_olonh")
+
+[node name="SignOutButton" type="Button" parent="ScrollContainer/VSplitContainer/ButtonsHContainer"]
+layout_mode = 2
+text = "Sign out"
+icon = ExtResource("5_ssxnk")
+
+[node name="HSeparator" type="HSeparator" parent="ScrollContainer/VSplitContainer"]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ScrollContainer/VSplitContainer"]
+layout_mode = 2
+
+[node name="Add assets label" type="Label" parent="ScrollContainer/VSplitContainer/VBoxContainer"]
+layout_mode = 2
+text = "Quick Add Basic Assets"
+label_settings = SubResource("LabelSettings_h2mxq")
+
+[node name="HFlowContainer" type="HFlowContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+last_wrap_alignment = 1
+
+[node name="DynamicCameraButton" type="Button" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer"]
+custom_minimum_size = Vector2(110, 85)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_default_cursor_shape = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/DynamicCameraButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/DynamicCameraButton/MarginContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="TextureRect" type="TextureRect" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/DynamicCameraButton/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(25, 25)
+layout_mode = 2
+texture = ExtResource("6_rt3xi")
+stretch_mode = 5
+
+[node name="Label" type="Label" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/DynamicCameraButton/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+text = "Dynamic Camera"
+label_settings = SubResource("LabelSettings_pnwcj")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="BlankTilesetButton" type="Button" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer"]
+custom_minimum_size = Vector2(110, 85)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_default_cursor_shape = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/BlankTilesetButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/BlankTilesetButton/MarginContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="TextureRect" type="TextureRect" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/BlankTilesetButton/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(25, 25)
+layout_mode = 2
+texture = ExtResource("7_pnwcj")
+stretch_mode = 5
+
+[node name="Label" type="Label" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/BlankTilesetButton/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+text = "Blank Tileset"
+label_settings = SubResource("LabelSettings_pnwcj")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="OrbitCameraButton" type="Button" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer"]
+custom_minimum_size = Vector2(110, 85)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_default_cursor_shape = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/OrbitCameraButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/OrbitCameraButton/MarginContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="TextureRect" type="TextureRect" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/OrbitCameraButton/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(25, 25)
+layout_mode = 2
+texture = ExtResource("8_ssxnk")
+stretch_mode = 5
+
+[node name="Label" type="Label" parent="ScrollContainer/VSplitContainer/VBoxContainer/HFlowContainer/OrbitCameraButton/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+text = "Orbit Camera"
+label_settings = SubResource("LabelSettings_pnwcj")
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="MarginContainer6" type="MarginContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Add assets label2" type="Label" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "CESIUM ion Assets"
+label_settings = SubResource("LabelSettings_h2mxq")
+
+[node name="VisitDepotButton" type="Button" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+tooltip_text = "Visit the CESIUM ion Asset Depot to browse and add new ion assets"
+mouse_default_cursor_shape = 2
+theme_override_constants/icon_max_width = 16
+text = "See More"
+icon = ExtResource("8_olonh")
+flat = true
+icon_alignment = 2
+
+[node name="IonAssetButtonHolder" type="VBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="TerrainAssets" type="BoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder"]
+layout_mode = 2
+title = "Terrain"
+
+[node name="MarginContainer" type="MarginContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/TerrainAssets"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="TerrainAssetsList" type="VBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/TerrainAssets/MarginContainer"]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/TerrainAssets/MarginContainer/TerrainAssetsList"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/TerrainAssets/MarginContainer/TerrainAssetsList/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+text = "Cesium World Terrain"
+vertical_alignment = 1
+
+[node name="Button" type="Button" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/TerrainAssets/MarginContainer/TerrainAssetsList/HBoxContainer"]
+layout_mode = 2
+icon = ExtResource("1_u036t")
+icon_alignment = 1
+
+[node name="Imagery" type="BoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder"]
+layout_mode = 2
+title = "Imagery"
+
+[node name="MarginContainer" type="MarginContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/Imagery"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="ImageryAssetsList" type="VBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/Imagery/MarginContainer"]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/Imagery/MarginContainer/ImageryAssetsList"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/Imagery/MarginContainer/ImageryAssetsList/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+text = "Cesium World Terrain"
+vertical_alignment = 1
+
+[node name="Button" type="Button" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/Imagery/MarginContainer/ImageryAssetsList/HBoxContainer"]
+layout_mode = 2
+icon = ExtResource("1_u036t")
+icon_alignment = 1
+
+[node name="3D Tiles" type="BoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder"]
+layout_mode = 2
+title = "3D Tiles"
+
+[node name="MarginContainer" type="MarginContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/3D Tiles"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 5
+
+[node name="3DTilesAssetsList" type="VBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/3D Tiles/MarginContainer"]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/3D Tiles/MarginContainer/3DTilesAssetsList"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/3D Tiles/MarginContainer/3DTilesAssetsList/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+text = "Cesium World Terrain"
+vertical_alignment = 1
+
+[node name="Button" type="Button" parent="ScrollContainer/VSplitContainer/VBoxContainer/IonAssetButtonHolder/3D Tiles/MarginContainer/3DTilesAssetsList/HBoxContainer"]
+layout_mode = 2
+icon = ExtResource("1_u036t")
+icon_alignment = 1
+
+[node name="MarginContainer5" type="MarginContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="HBoxContainer4" type="HBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 75)
+layout_mode = 2
+size_flags_vertical = 8
+alignment = 1
+
+[node name="TextureRect" type="TextureRect" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer4"]
+custom_minimum_size = Vector2(100, 50)
+layout_mode = 2
+texture = ExtResource("1_ldapw")
+expand_mode = 5
+stretch_mode = 5
+
+[node name="Control" type="Control" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer4"]
+custom_minimum_size = Vector2(10, 0)
+layout_mode = 2
+
+[node name="Label2" type="Label" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer4"]
+custom_minimum_size = Vector2(300, 1.45519e-11)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Access global high-resolution 3D content, including photogrammetry, terrain, imagery, and buildings. Bring your own data for tiling, hosting, and streaming to Godot."
+label_settings = SubResource("LabelSettings_u036t")
+autowrap_mode = 3
+
+[node name="MarginContainer3" type="MarginContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+alignment = 1
+
+[node name="BoxContainer2" type="BoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ConnectButton" type="Button" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+mouse_default_cursor_shape = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3/ConnectButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 5
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3/ConnectButton/MarginContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="TextureRect" type="TextureRect" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3/ConnectButton/MarginContainer/HBoxContainer"]
+layout_mode = 2
+texture = ExtResource("3_xprf4")
+stretch_mode = 3
+
+[node name="Control" type="Control" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3/ConnectButton/MarginContainer/HBoxContainer"]
+custom_minimum_size = Vector2(5, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3/ConnectButton/MarginContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 1
+text = "Connect"
+vertical_alignment = 1
+
+[node name="IONConnected" type="HBoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+
+[node name="TextureRect" type="TextureRect" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3/IONConnected"]
+layout_mode = 2
+texture = ExtResource("3_44dw4")
+stretch_mode = 3
+
+[node name="Control" type="Control" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3/IONConnected"]
+custom_minimum_size = Vector2(5, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3/IONConnected"]
+layout_mode = 2
+size_flags_vertical = 1
+text = "Connected"
+vertical_alignment = 1
+
+[node name="BoxContainer" type="BoxContainer" parent="ScrollContainer/VSplitContainer/VBoxContainer/HBoxContainer3"]
+layout_mode = 2
+size_flags_horizontal = 3

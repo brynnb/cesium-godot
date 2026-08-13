@@ -1,0 +1,137 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "Cesium for Godot line and point renderer test"
+  },
+  "extensionsUsed": [
+    "BENTLEY_materials_point_style"
+  ],
+  "extras": {
+    "gltfUpAxis": 2
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [0]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0
+    }
+  ],
+  "meshes": [
+    {
+      "name": "EveryNonTriangleTopology",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 2
+          },
+          "material": 0,
+          "mode": 0
+        },
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 2
+          },
+          "indices": 1,
+          "material": 1,
+          "mode": 1
+        },
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 2
+          },
+          "indices": 1,
+          "material": 1,
+          "mode": 2
+        },
+        {
+          "attributes": {
+            "POSITION": 0,
+            "COLOR_0": 2
+          },
+          "indices": 1,
+          "material": 1,
+          "mode": 3
+        }
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "name": "BentleyCircularPoints",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 1.0
+      },
+      "extensions": {
+        "BENTLEY_materials_point_style": {
+          "diameter": 7
+        }
+      }
+    },
+    {
+      "name": "VertexColoredLines",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 1.0
+      }
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 72,
+      "uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAAAgQQAAAAAAAAAAAAAgQQAAIEEAAAAAAAAAAAAAIEEAACBBAAABAAIAAwD/AAD/AP8A/wAA////////"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 48,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 48,
+      "byteLength": 8,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 56,
+      "byteLength": 16,
+      "target": 34962
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC3",
+      "min": [0, 0, 0],
+      "max": [10, 10, 10]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5123,
+      "count": 4,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5121,
+      "normalized": true,
+      "count": 4,
+      "type": "VEC4"
+    }
+  ]
+}

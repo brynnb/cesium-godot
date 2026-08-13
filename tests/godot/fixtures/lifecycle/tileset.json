@@ -1,0 +1,57 @@
+{
+  "asset": {
+    "version": "1.1"
+  },
+  "geometricError": 1000,
+  "root": {
+    "transform": [
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      6378137, 0, 0, 1
+    ],
+    "boundingVolume": {
+      "box": [
+        50, 0, 50,
+        100, 0, 0,
+        0, 100, 0,
+        0, 0, 100
+      ]
+    },
+    "geometricError": 1000,
+    "refine": "REPLACE",
+    "children": [
+      {
+        "boundingVolume": {
+          "box": [
+            50, 0, 50,
+            100, 0, 0,
+            0, 100, 0,
+            0, 0, 100
+          ]
+        },
+        "viewerRequestVolume": {
+          "sphere": [50, 0, 50, 1000]
+        },
+        "geometricError": 0,
+        "content": {
+          "boundingVolume": {
+            "sphere": [50, 0, 50, 75]
+          },
+          "uri": "triangle.gltf"
+        },
+        "extras": {
+          "placement_id": "chunk_n25_26:17:2",
+          "source_chunk": "chunk_n25_26",
+          "selection_distance": 12500.5,
+          "distance_persistent": true,
+          "lod_meshes": ["high.gltf", "low.gltf"],
+          "source": {
+            "class": "CompoundObject",
+            "node_id": "fixture-node"
+          }
+        }
+      }
+    ]
+  }
+}

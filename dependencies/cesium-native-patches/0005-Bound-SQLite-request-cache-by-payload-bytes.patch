@@ -1,0 +1,485 @@
+From d631639f39741fd005cf845b85d48e49af4254ed Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Tue, 11 Aug 2026 21:56:27 -0700
+Subject: [PATCH 05/11] Bound SQLite request cache by payload bytes
+
+---
+ CesiumAsync/include/CesiumAsync/SqliteCache.h |   7 +-
+ CesiumAsync/src/SqliteCache.cpp               | 278 ++++++++++++------
+ CesiumAsync/test/TestDiskCache.cpp            |  34 +++
+ 3 files changed, 231 insertions(+), 88 deletions(-)
+
+diff --git a/CesiumAsync/include/CesiumAsync/SqliteCache.h b/CesiumAsync/include/CesiumAsync/SqliteCache.h
+index 0182f4a..1dad58e 100644
+--- a/CesiumAsync/include/CesiumAsync/SqliteCache.h
++++ b/CesiumAsync/include/CesiumAsync/SqliteCache.h
+@@ -5,6 +5,8 @@
+ #include <spdlog/fwd.h>
+ 
+ #include <cstddef>
++#include <cstdint>
++#include <limits>
+ #include <memory>
+ #include <optional>
+ #include <string>
+@@ -27,11 +29,14 @@ public:
+    * @param databaseName the database path.
+    * @param maxItems the maximum number of items should be kept in the database
+    * after prunning.
++   * @param maxDataBytes the maximum total response-body bytes to retain after
++   * pruning. SQLite bookkeeping and serialized headers are not included.
+    */
+   SqliteCache(
+       const std::shared_ptr<spdlog::logger>& pLogger,
+       const std::string& databaseName,
+-      uint64_t maxItems = 4096);
++      uint64_t maxItems = 4096,
++      uint64_t maxDataBytes = std::numeric_limits<uint64_t>::max());
+   ~SqliteCache();
+ 
+   /** @copydoc ICacheDatabase::getEntry*/
+diff --git a/CesiumAsync/src/SqliteCache.cpp b/CesiumAsync/src/SqliteCache.cpp
+index a3f1679..030cf00 100644
+--- a/CesiumAsync/src/SqliteCache.cpp
++++ b/CesiumAsync/src/SqliteCache.cpp
+@@ -42,6 +42,8 @@ const std::string CACHE_TABLE_REQUEST_HEADER_COLUMN = "requestHeader";
+ const std::string CACHE_TABLE_REQUEST_METHOD_COLUMN = "requestMethod";
+ const std::string CACHE_TABLE_REQUEST_URL_COLUMN = "requestUrl";
+ const std::string CACHE_TABLE_VIRTUAL_TOTAL_ITEMS_COLUMN = "totalItems";
++const std::string CACHE_TABLE_VIRTUAL_TOTAL_DATA_BYTES_COLUMN =
++    "totalDataBytes";
+ 
+ // Sql commands for setting up database
+ const std::string CREATE_CACHE_TABLE_SQL =
+@@ -87,9 +89,15 @@ const std::string STORE_RESPONSE_SQL =
+     ", " + CACHE_TABLE_KEY_COLUMN + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+ 
+ // Sql commands for prunning the database
+-const std::string TOTAL_ITEMS_QUERY_SQL =
+-    "SELECT COUNT(*) " + CACHE_TABLE_VIRTUAL_TOTAL_ITEMS_COLUMN + " FROM " +
+-    CACHE_TABLE;
++const std::string TOTAL_USAGE_QUERY_SQL =
++    "SELECT COUNT(*) " + CACHE_TABLE_VIRTUAL_TOTAL_ITEMS_COLUMN +
++    ", COALESCE(SUM(LENGTH(" + CACHE_TABLE_RESPONSE_DATA_COLUMN + ")), 0) " +
++    CACHE_TABLE_VIRTUAL_TOTAL_DATA_BYTES_COLUMN + " FROM " + CACHE_TABLE;
++
++const std::string LRU_DATA_SIZES_QUERY_SQL =
++    "SELECT LENGTH(" + CACHE_TABLE_RESPONSE_DATA_COLUMN + ") FROM " +
++    CACHE_TABLE + " ORDER BY " + CACHE_TABLE_LAST_ACCESSED_TIME_COLUMN +
++    " ASC, rowid ASC";
+ 
+ const std::string DELETE_EXPIRED_ITEMS_SQL =
+     "DELETE FROM " + CACHE_TABLE + " WHERE " + CACHE_TABLE_EXPIRY_TIME_COLUMN +
+@@ -102,6 +110,8 @@ const std::string DELETE_LRU_ITEMS_SQL =
+ 
+ // Sql commands for clean all items
+ const std::string CLEAR_ALL_SQL = "DELETE FROM " + CACHE_TABLE;
++const std::string VACUUM_SQL = "VACUUM";
++const std::string CHECKPOINT_SQL = "PRAGMA wal_checkpoint(TRUNCATE)";
+ 
+ std::string convertHeadersToString(const HttpHeaders& headers) {
+   rapidjson::Document document;
+@@ -149,15 +159,18 @@ struct SqliteCache::Impl {
+   Impl(
+       const std::shared_ptr<spdlog::logger>& pLogger,
+       const std::string& databaseName,
+-      uint64_t maxItems)
++      uint64_t maxItems,
++      uint64_t maxDataBytes)
+       : _pLogger(pLogger),
+         _pConnection(nullptr),
+         _databaseName(databaseName),
+         _maxItems(maxItems),
++        _maxDataBytes(maxDataBytes),
+         _getEntryStmtWrapper(),
+         _updateLastAccessedTimeStmtWrapper(),
+         _storeResponseStmtWrapper(),
+         _totalItemsQueryStmtWrapper(),
++        _lruDataSizesQueryStmtWrapper(),
+         _deleteExpiredStmtWrapper(),
+         _deleteLRUStmtWrapper(),
+         _clearAllStmtWrapper() {}
+@@ -166,11 +179,13 @@ struct SqliteCache::Impl {
+   SqliteConnectionPtr _pConnection;
+   std::string _databaseName;
+   uint64_t _maxItems;
++  uint64_t _maxDataBytes;
+   mutable std::mutex _mutex;
+   SqliteStatementPtr _getEntryStmtWrapper;
+   SqliteStatementPtr _updateLastAccessedTimeStmtWrapper;
+   SqliteStatementPtr _storeResponseStmtWrapper;
+   SqliteStatementPtr _totalItemsQueryStmtWrapper;
++  SqliteStatementPtr _lruDataSizesQueryStmtWrapper;
+   SqliteStatementPtr _deleteExpiredStmtWrapper;
+   SqliteStatementPtr _deleteLRUStmtWrapper;
+   SqliteStatementPtr _clearAllStmtWrapper;
+@@ -179,8 +194,10 @@ struct SqliteCache::Impl {
+ SqliteCache::SqliteCache(
+     const std::shared_ptr<spdlog::logger>& pLogger,
+     const std::string& databaseName,
+-    uint64_t maxItems)
+-    : _pImpl(std::make_unique<Impl>(pLogger, databaseName, maxItems)) {
++    uint64_t maxItems,
++    uint64_t maxDataBytes)
++    : _pImpl(
++          std::make_unique<Impl>(pLogger, databaseName, maxItems, maxDataBytes)) {
+   createConnection();
+ }
+ 
+@@ -268,10 +285,14 @@ void SqliteCache::createConnection() const {
+       this->_pImpl->_pConnection,
+       STORE_RESPONSE_SQL);
+ 
+-  // query total items
++  // query total items and response data bytes
+   this->_pImpl->_totalItemsQueryStmtWrapper = SqliteHelper::prepareStatement(
+-      this->_pImpl->_pConnection,
+-      TOTAL_ITEMS_QUERY_SQL);
++      this->_pImpl->_pConnection, TOTAL_USAGE_QUERY_SQL);
++
++  // query response sizes from least to most recently used
++  this->_pImpl->_lruDataSizesQueryStmtWrapper =
++      SqliteHelper::prepareStatement(
++          this->_pImpl->_pConnection, LRU_DATA_SIZES_QUERY_SQL);
+ 
+   // delete expired items
+   this->_pImpl->_deleteExpiredStmtWrapper = SqliteHelper::prepareStatement(
+@@ -600,56 +621,9 @@ bool SqliteCache::prune() {
+   CESIUM_TRACE("SqliteCache::prune");
+   std::lock_guard<std::mutex> guard(this->_pImpl->_mutex);
+ 
+-  int64_t totalItems = 0;
+-
+-  // query total size of response's data
+-  {
+-    int totalItemsQueryStatus = CESIUM_SQLITE(sqlite3_reset)(
+-        this->_pImpl->_totalItemsQueryStmtWrapper.get());
+-    if (totalItemsQueryStatus != SQLITE_OK) {
+-      SPDLOG_LOGGER_ERROR(
+-          this->_pImpl->_pLogger,
+-          CESIUM_SQLITE(sqlite3_errstr)(totalItemsQueryStatus));
+-      return false;
+-    }
+-
+-    totalItemsQueryStatus = CESIUM_SQLITE(sqlite3_clear_bindings)(
+-        this->_pImpl->_totalItemsQueryStmtWrapper.get());
+-    if (totalItemsQueryStatus != SQLITE_OK) {
+-      SPDLOG_LOGGER_ERROR(
+-          this->_pImpl->_pLogger,
+-          CESIUM_SQLITE(sqlite3_errstr)(totalItemsQueryStatus));
+-      return false;
+-    }
+-
+-    totalItemsQueryStatus = CESIUM_SQLITE(sqlite3_step)(
+-        this->_pImpl->_totalItemsQueryStmtWrapper.get());
+-
+-    if (totalItemsQueryStatus == SQLITE_DONE) {
+-      return true;
+-    }
+-
+-    if (totalItemsQueryStatus != SQLITE_ROW) {
+-      if (totalItemsQueryStatus == SQLITE_CORRUPT) {
+-        destroyDatabase();
+-      }
+-      SPDLOG_LOGGER_ERROR(
+-          this->_pImpl->_pLogger,
+-          CESIUM_SQLITE(sqlite3_errstr)(totalItemsQueryStatus));
+-      return false;
+-    }
+-
+-    // prune the rows if over maximum
+-    totalItems = CESIUM_SQLITE(sqlite3_column_int64)(
+-        this->_pImpl->_totalItemsQueryStmtWrapper.get(),
+-        0);
+-    if (totalItems > 0 &&
+-        totalItems <= static_cast<int64_t>(this->_pImpl->_maxItems)) {
+-      return true;
+-    }
+-  }
+-
+-  // delete expired rows first
++  // Delete expired rows on every prune, even when the count and byte limits
++  // are not exceeded. This keeps stale entries from surviving indefinitely in
++  // a lightly-used cache.
+   {
+     int deleteExpiredStatus = CESIUM_SQLITE(sqlite3_reset)(
+         this->_pImpl->_deleteExpiredStmtWrapper.get());
+@@ -682,55 +656,128 @@ bool SqliteCache::prune() {
+     }
+   }
+ 
+-  // check if we should delete more
+-  const int deletedRows =
+-      CESIUM_SQLITE(sqlite3_changes)(this->_pImpl->_pConnection.get());
+-  if (totalItems - deletedRows < static_cast<int>(this->_pImpl->_maxItems)) {
+-    return true;
++  uint64_t totalItems = 0;
++  uint64_t totalDataBytes = 0;
++  {
++    int status = CESIUM_SQLITE(sqlite3_reset)(
++        this->_pImpl->_totalItemsQueryStmtWrapper.get());
++    if (status == SQLITE_OK) {
++      status = CESIUM_SQLITE(sqlite3_clear_bindings)(
++          this->_pImpl->_totalItemsQueryStmtWrapper.get());
++    }
++    if (status == SQLITE_OK) {
++      status = CESIUM_SQLITE(sqlite3_step)(
++          this->_pImpl->_totalItemsQueryStmtWrapper.get());
++    }
++    if (status != SQLITE_ROW) {
++      if (status == SQLITE_CORRUPT) {
++        destroyDatabase();
++      }
++      SPDLOG_LOGGER_ERROR(
++          this->_pImpl->_pLogger, CESIUM_SQLITE(sqlite3_errstr)(status));
++      return false;
++    }
++
++    const int64_t signedItems = CESIUM_SQLITE(sqlite3_column_int64)(
++        this->_pImpl->_totalItemsQueryStmtWrapper.get(), 0);
++    const int64_t signedDataBytes = CESIUM_SQLITE(sqlite3_column_int64)(
++        this->_pImpl->_totalItemsQueryStmtWrapper.get(), 1);
++    totalItems = signedItems > 0 ? static_cast<uint64_t>(signedItems) : 0;
++    totalDataBytes =
++        signedDataBytes > 0 ? static_cast<uint64_t>(signedDataBytes) : 0;
+   }
+ 
+-  totalItems -= deletedRows;
++  if (totalItems <= this->_pImpl->_maxItems &&
++      totalDataBytes <= this->_pImpl->_maxDataBytes) {
++    return true;
++  }
+ 
+-  // delete rows LRU if we are still over maximum
++  // Find the smallest LRU prefix whose removal satisfies both limits. The
++  // separate item and payload-byte limits intentionally compose: whichever
++  // requires more evictions wins.
++  uint64_t rowsToDelete = 0;
+   {
+-    int deleteLLRUStatus =
+-        CESIUM_SQLITE(sqlite3_reset)(this->_pImpl->_deleteLRUStmtWrapper.get());
+-    if (deleteLLRUStatus != SQLITE_OK) {
++    int status = CESIUM_SQLITE(sqlite3_reset)(
++        this->_pImpl->_lruDataSizesQueryStmtWrapper.get());
++    if (status == SQLITE_OK) {
++      status = CESIUM_SQLITE(sqlite3_clear_bindings)(
++          this->_pImpl->_lruDataSizesQueryStmtWrapper.get());
++    }
++    if (status != SQLITE_OK) {
+       SPDLOG_LOGGER_ERROR(
+-          this->_pImpl->_pLogger,
+-          CESIUM_SQLITE(sqlite3_errstr)(deleteLLRUStatus));
++          this->_pImpl->_pLogger, CESIUM_SQLITE(sqlite3_errstr)(status));
+       return false;
+     }
+ 
+-    deleteLLRUStatus = CESIUM_SQLITE(sqlite3_clear_bindings)(
+-        this->_pImpl->_deleteLRUStmtWrapper.get());
+-    if (deleteLLRUStatus != SQLITE_OK) {
++    while (
++        totalItems > this->_pImpl->_maxItems ||
++        totalDataBytes > this->_pImpl->_maxDataBytes) {
++      status = CESIUM_SQLITE(sqlite3_step)(
++          this->_pImpl->_lruDataSizesQueryStmtWrapper.get());
++      if (status == SQLITE_DONE) {
++        break;
++      }
++      if (status != SQLITE_ROW) {
++        if (status == SQLITE_CORRUPT) {
++          destroyDatabase();
++        }
++        SPDLOG_LOGGER_ERROR(
++            this->_pImpl->_pLogger, CESIUM_SQLITE(sqlite3_errstr)(status));
++        return false;
++      }
++
++      const int64_t signedRowBytes = CESIUM_SQLITE(sqlite3_column_int64)(
++          this->_pImpl->_lruDataSizesQueryStmtWrapper.get(), 0);
++      const uint64_t rowBytes =
++          signedRowBytes > 0 ? static_cast<uint64_t>(signedRowBytes) : 0;
++      totalDataBytes = rowBytes > totalDataBytes ? 0 : totalDataBytes - rowBytes;
++      if (totalItems > 0) {
++        --totalItems;
++      }
++      ++rowsToDelete;
++    }
++
++    status = CESIUM_SQLITE(sqlite3_reset)(
++        this->_pImpl->_lruDataSizesQueryStmtWrapper.get());
++    if (status != SQLITE_OK) {
+       SPDLOG_LOGGER_ERROR(
+-          this->_pImpl->_pLogger,
+-          CESIUM_SQLITE(sqlite3_errstr)(deleteLLRUStatus));
++          this->_pImpl->_pLogger, CESIUM_SQLITE(sqlite3_errstr)(status));
+       return false;
+     }
++  }
+ 
+-    deleteLLRUStatus = CESIUM_SQLITE(sqlite3_bind_int64)(
++  if (rowsToDelete == 0) {
++    return true;
++  }
++
++  // Delete the chosen LRU prefix in one statement.
++  {
++    int status =
++        CESIUM_SQLITE(sqlite3_reset)(this->_pImpl->_deleteLRUStmtWrapper.get());
++    if (status == SQLITE_OK) {
++      status = CESIUM_SQLITE(sqlite3_clear_bindings)(
++          this->_pImpl->_deleteLRUStmtWrapper.get());
++    }
++    if (status == SQLITE_OK) {
++      status = CESIUM_SQLITE(sqlite3_bind_int64)(
+         this->_pImpl->_deleteLRUStmtWrapper.get(),
+         1,
+-        totalItems - static_cast<int64_t>(this->_pImpl->_maxItems));
+-    if (deleteLLRUStatus != SQLITE_OK) {
++        static_cast<int64_t>(rowsToDelete));
++    }
++    if (status != SQLITE_OK) {
+       SPDLOG_LOGGER_ERROR(
+-          this->_pImpl->_pLogger,
+-          CESIUM_SQLITE(sqlite3_errstr)(deleteLLRUStatus));
++          this->_pImpl->_pLogger, CESIUM_SQLITE(sqlite3_errstr)(status));
+       return false;
+     }
+ 
+-    deleteLLRUStatus =
++    status =
+         CESIUM_SQLITE(sqlite3_step)(this->_pImpl->_deleteLRUStmtWrapper.get());
+-    if (deleteLLRUStatus != SQLITE_DONE) {
+-      if (deleteLLRUStatus == SQLITE_CORRUPT) {
++    if (status != SQLITE_DONE) {
++      if (status == SQLITE_CORRUPT) {
+         destroyDatabase();
+       }
+       SPDLOG_LOGGER_ERROR(
+-          this->_pImpl->_pLogger,
+-          CESIUM_SQLITE(sqlite3_errstr)(deleteLLRUStatus));
++          this->_pImpl->_pLogger, CESIUM_SQLITE(sqlite3_errstr)(status));
+       return false;
+     }
+   }
+@@ -762,6 +809,61 @@ bool SqliteCache::clearAll() {
+     return false;
+   }
+ 
++  // Clearing a cache is expected to release disk space, not merely leave
++  // deleted SQLite pages in a potentially very large database and WAL. Reset
++  // every reusable statement before VACUUM so no statement retains a read
++  // transaction, then compact and truncate the WAL while holding the cache
++  // mutex.
++  SqliteStatementPtr* statements[] = {
++      &this->_pImpl->_getEntryStmtWrapper,
++      &this->_pImpl->_updateLastAccessedTimeStmtWrapper,
++      &this->_pImpl->_storeResponseStmtWrapper,
++      &this->_pImpl->_totalItemsQueryStmtWrapper,
++      &this->_pImpl->_lruDataSizesQueryStmtWrapper,
++      &this->_pImpl->_deleteExpiredStmtWrapper,
++      &this->_pImpl->_deleteLRUStmtWrapper,
++      &this->_pImpl->_clearAllStmtWrapper};
++  for (SqliteStatementPtr* pStatement : statements) {
++    status = CESIUM_SQLITE(sqlite3_reset)(pStatement->get());
++    if (status != SQLITE_OK) {
++      SPDLOG_LOGGER_ERROR(
++          this->_pImpl->_pLogger, CESIUM_SQLITE(sqlite3_errstr)(status));
++      return false;
++    }
++  }
++
++  char* errorMessage = nullptr;
++  status = CESIUM_SQLITE(sqlite3_exec)(
++      this->_pImpl->_pConnection.get(),
++      VACUUM_SQL.c_str(),
++      nullptr,
++      nullptr,
++      &errorMessage);
++  if (status != SQLITE_OK) {
++    SPDLOG_LOGGER_ERROR(
++        this->_pImpl->_pLogger,
++        errorMessage != nullptr ? errorMessage
++                                : CESIUM_SQLITE(sqlite3_errstr)(status));
++    CESIUM_SQLITE(sqlite3_free)(errorMessage);
++    return false;
++  }
++
++  errorMessage = nullptr;
++  status = CESIUM_SQLITE(sqlite3_exec)(
++      this->_pImpl->_pConnection.get(),
++      CHECKPOINT_SQL.c_str(),
++      nullptr,
++      nullptr,
++      &errorMessage);
++  if (status != SQLITE_OK) {
++    SPDLOG_LOGGER_ERROR(
++        this->_pImpl->_pLogger,
++        errorMessage != nullptr ? errorMessage
++                                : CESIUM_SQLITE(sqlite3_errstr)(status));
++    CESIUM_SQLITE(sqlite3_free)(errorMessage);
++    return false;
++  }
++
+   return true;
+ }
+ 
+@@ -769,8 +871,10 @@ void SqliteCache::destroyDatabase() {
+   std::shared_ptr<spdlog::logger> pLogger = _pImpl->_pLogger;
+   std::string databaseName = _pImpl->_databaseName;
+   uint64_t maxItems = _pImpl->_maxItems;
++  uint64_t maxDataBytes = _pImpl->_maxDataBytes;
+   _pImpl.reset();
+-  _pImpl = std::make_unique<Impl>(pLogger, databaseName, maxItems);
++  _pImpl =
++      std::make_unique<Impl>(pLogger, databaseName, maxItems, maxDataBytes);
+   if (std::remove(_pImpl->_databaseName.c_str()) != 0) {
+     SPDLOG_LOGGER_ERROR(
+         this->_pImpl->_pLogger,
+diff --git a/CesiumAsync/test/TestDiskCache.cpp b/CesiumAsync/test/TestDiskCache.cpp
+index 9efa579..ca6182e 100644
+--- a/CesiumAsync/test/TestDiskCache.cpp
++++ b/CesiumAsync/test/TestDiskCache.cpp
+@@ -5,6 +5,7 @@
+ #include <CesiumAsync/CacheItem.h>
+ #include <CesiumAsync/HttpHeaders.h>
+ #include <CesiumAsync/SqliteCache.h>
++#include <CesiumNativeTests/OwnedTempFile.h>
+ 
+ #include <doctest/doctest.h>
+ #include <spdlog/spdlog.h>
+@@ -224,3 +225,36 @@ TEST_CASE("Test disk cache with Sqlite") {
+     }
+   }
+ }
++
++TEST_CASE("Sqlite cache prunes by logical response bytes") {
++  OwnedTempFile cacheFile;
++  SqliteCache diskCache(
++      spdlog::default_logger(), cacheFile.getPath().string(), 100, 9);
++  REQUIRE(diskCache.clearAll());
++
++  const HttpHeaders headers{{"Content-Type", "application/octet-stream"}};
++  const std::vector<std::byte> fiveBytes{
++      std::byte(0),
++      std::byte(1),
++      std::byte(2),
++      std::byte(3),
++      std::byte(4)};
++  const std::time_t expiry = std::time(nullptr) + 3600;
++  for (size_t i = 0; i < 3; ++i) {
++    REQUIRE(diskCache.storeEntry(
++        "ByteKey" + std::to_string(i),
++        expiry,
++        "https://example.com/" + std::to_string(i),
++        "GET",
++        HttpHeaders{},
++        200,
++        headers,
++        fiveBytes));
++  }
++
++  REQUIRE(diskCache.prune());
++  CHECK(diskCache.getEntry("ByteKey0") == std::nullopt);
++  CHECK(diskCache.getEntry("ByteKey1") == std::nullopt);
++  CHECK(diskCache.getEntry("ByteKey2") != std::nullopt);
++  REQUIRE(diskCache.clearAll());
++}

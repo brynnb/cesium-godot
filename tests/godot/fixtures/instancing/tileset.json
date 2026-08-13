@@ -1,0 +1,26 @@
+{
+  "asset": {
+    "version": "1.1"
+  },
+  "geometricError": 1000,
+  "root": {
+    "transform": [
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      6378137, 0, 0, 1
+    ],
+    "boundingVolume": {
+      "box": [
+        40, 40, 0,
+        80, 0, 0,
+        0, 80, 0,
+        0, 0, 80
+      ]
+    },
+    "geometricError": 0,
+    "content": {
+      "uri": "instances.gltf"
+    }
+  }
+}

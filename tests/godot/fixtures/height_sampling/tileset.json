@@ -1,0 +1,27 @@
+{
+  "asset": {
+    "version": "1.1"
+  },
+  "geometricError": 0,
+  "root": {
+    "transform": [
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      6378137, 0, 0, 1
+    ],
+    "boundingVolume": {
+      "box": [
+        100, 0, 0,
+        2, 0, 0,
+        0, 1000, 0,
+        0, 0, 1000
+      ]
+    },
+    "geometricError": 0,
+    "refine": "REPLACE",
+    "content": {
+      "uri": "height_plane.gltf"
+    }
+  }
+}

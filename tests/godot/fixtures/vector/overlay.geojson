@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": 7,
+      "properties": {
+        "name": "test polygon",
+        "nested": {"enabled": true},
+        "large_unsigned_as_text": 18446744073709551615
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-0.01, -0.01, 0.0],
+          [0.01, -0.01, 0.0],
+          [0.01, 0.01, 0.0],
+          [-0.01, 0.01, 0.0]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road",
+      "properties": {"kind": "line"},
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-0.01, 0.0], [0.01, 0.0]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": null,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [0.0, 0.0, 12.5]
+      }
+    }
+  ],
+  "vendor": "foreign-root-member"
+}

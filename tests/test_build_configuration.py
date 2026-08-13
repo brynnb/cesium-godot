@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""Offline checks for the cross-platform build contract."""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+BUILD_SCRIPT = ROOT / "tools" / "build_extension.py"
+SPEC = importlib.util.spec_from_file_location("build_extension", BUILD_SCRIPT)
+assert SPEC is not None and SPEC.loader is not None
+BUILD_EXTENSION = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(BUILD_EXTENSION)
+
+
+class BuildConfigurationTests(unittest.TestCase):
+    def test_expected_artifact_names_match_gdextension_manifest(self) -> None:
+        expected = {
+            ("linux", "x64"): "libGodot3DTiles.linux.template_release.x86_64.so",
+            ("windows", "x64"): "Godot3DTiles.windows.template_release.x86_64.dll",
+            ("macos", "arm64"): "libGodot3DTiles.macos.template_release.arm64.dylib",
+        }
+        for target, filename in expected.items():
+            self.assertEqual(BUILD_EXTENSION._expected_output(*target).name, filename)
+        self.assertEqual(
+            BUILD_EXTENSION._expected_output(
+                "linux", "x64", "template_debug"
+            ).name,
+            "libGodot3DTiles.linux.template_debug.x86_64.so",
+        )
+        self.assertEqual(
+            BUILD_EXTENSION._expected_output(
+                "linux", "x64", "template_release", "double"
+            ).name,
+            "libGodot3DTiles.linux.template_release.double.x86_64.so",
+        )
+
+    def test_ci_matrix_covers_supported_artifacts_and_current_runtime(self) -> None:
+        workflow = (ROOT / ".github/workflows/build-matrix.yml").read_text(
+            encoding="utf-8"
+        )
+        for required in (
+            "ubuntu-24.04",
+            "windows-2022",
+            "macos-15",
+            "precision: double",
+            "Godot_v4.6.3-stable_linux.x86_64.zip",
+            "tools/bootstrap_dependencies.py --verify-only",
+            "undefined symbol:",
+        ):
+            self.assertIn(required, workflow)
+        self.assertNotIn("Godot_v4.2.2", workflow)
+
+    def test_windows_static_link_closure_matches_current_dependencies(self) -> None:
+        build = (ROOT / "cesium_godot/SCsub").read_text(encoding="utf-8")
+        windows = build[
+            build.index("if (os.name == cesium_build_utils.OS_WIN)") :
+            build.index("elif sys.platform == cesium_build_utils.PLATFORM_MACOS")
+        ]
+        for required in (
+            '"absl_demangle_rust"',
+            '"absl_decode_rust_punycode"',
+            '"absl_utf8_for_code_point"',
+            '"absl_tracing_internal"',
+            '"zs"',
+        ):
+            self.assertIn(required, windows)
+        self.assertNotIn('"zlib",', windows)
+
+    def test_default_generated_data_is_inside_visible_build_directory(self) -> None:
+        build_root = ROOT / "build"
+        for path in (
+            ROOT / "build/dependencies/sources/godot-cpp",
+            ROOT / "build/dependencies/sources/cesium-native",
+            ROOT / "build/dependencies/native-build",
+            ROOT / "build/dependencies/vcpkg",
+            ROOT / "build/test-engines",
+        ):
+            self.assertTrue(path.is_relative_to(build_root))
+            self.assertNotIn("/tmp/", str(path))
+
+    def test_native_configuration_is_fresh_and_out_of_source(self) -> None:
+        build_utils = (ROOT / "CesiumBuildUtils.py").read_text(encoding="utf-8")
+        self.assertIn('"--fresh"', build_utils)
+        native_build_root = build_utils[
+            build_utils.index("def get_native_build_root") :
+            build_utils.index("def get_native_library_config_subdir")
+        ]
+        self.assertIn("DEPENDENCY_BUILD_ROOT", native_build_root)
+        self.assertNotIn("return native_root_override", native_build_root)
+
+    def test_locked_vcpkg_is_bootstrapped_before_use(self) -> None:
+        bootstrap = (ROOT / "tools/bootstrap_dependencies.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("bootstrap-vcpkg", bootstrap)
+        self.assertIn("-disableMetrics", bootstrap)
+        self.assertIn('"version"', bootstrap)
+
+
+if __name__ == "__main__":
+    unittest.main()

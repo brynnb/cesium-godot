@@ -1,0 +1,18 @@
+{
+  "asset": { "version": "1.1" },
+  "extensionsUsed": ["3DTILES_bounding_volume_S2"],
+  "extensionsRequired": ["3DTILES_bounding_volume_S2"],
+  "geometricError": 0,
+  "root": {
+    "boundingVolume": {
+      "extensions": {
+        "3DTILES_bounding_volume_S2": {
+          "token": "3",
+          "minimumHeight": 5,
+          "maximumHeight": 500
+        }
+      }
+    },
+    "geometricError": 0
+  }
+}

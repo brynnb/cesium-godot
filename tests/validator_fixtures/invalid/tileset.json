@@ -1,0 +1,26 @@
+{
+  "asset": {"version": "1.1"},
+  "geometricError": 10,
+  "root": {
+    "boundingVolume": {"sphere": [0, 0, 0, -1]},
+    "geometricError": 10,
+    "children": [
+      {
+        "boundingVolume": {"box": [0, 0, 0, 1, 0, 0]},
+        "geometricError": 20,
+        "content": {"uri": "missing.glb"}
+      },
+      {
+        "boundingVolume": {"sphere": [0, 0, 0, 10]},
+        "geometricError": 0,
+        "content": {"uri": "broken.gltf"}
+      },
+      {
+        "boundingVolume": {"sphere": [0, 0, 0, 10]},
+        "geometricError": 0,
+        "content": {"uri": "external-cycle.json"}
+      },
+      "not-a-tile"
+    ]
+  }
+}

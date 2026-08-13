@@ -1,0 +1,80 @@
+From faf65c427985e6c2f4d716f7dca3798f67642a2c Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Wed, 12 Aug 2026 08:35:51 -0700
+Subject: [PATCH 11/11] Allow decorators to classify Curl transfer errors
+
+---
+ CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h | 11 +++++++++++
+ CesiumCurl/src/CurlAssetAccessor.cpp              |  4 ++++
+ CesiumCurl/test/TestCurlAssetAccessor.cpp         | 14 ++++++++++++++
+ 3 files changed, 29 insertions(+)
+
+diff --git a/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h b/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h
+index 97a568e..df585ac 100644
+--- a/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h
++++ b/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h
+@@ -91,6 +91,17 @@ struct CESIUMCURL_API CurlAssetAccessorOptions {
+    * unwound.
+    */
+   bool resolveCancellationAsNullResponse{false};
++
++  /**
++   * @brief Whether libcurl transfer failures resolve with an asset request
++   * whose response is null instead of rejecting the returned future.
++   *
++   * HTTP error responses are unaffected because they are successful libcurl
++   * transfers. The default preserves the historical standalone behavior.
++   * Decorators may opt in to classify and retry response-less failures without
++   * propagating an exception through an additional async continuation chain.
++   */
++  bool resolveErrorsAsNullResponse{false};
+ };
+ 
+ /**
+diff --git a/CesiumCurl/src/CurlAssetAccessor.cpp b/CesiumCurl/src/CurlAssetAccessor.cpp
+index c13fd6f..867bb4b 100644
+--- a/CesiumCurl/src/CurlAssetAccessor.cpp
++++ b/CesiumCurl/src/CurlAssetAccessor.cpp
+@@ -457,6 +457,8 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::getWithOptions(
+             options.isCancellationRequested() &&
+             pThis->_options.resolveCancellationAsNullResponse) {
+           return pRequest;
++        } else if (pThis->_options.resolveErrorsAsNullResponse) {
++          return pRequest;
+         } else {
+           throw std::runtime_error(fmt::format(
+               "{} `{}` failed: {}",
+@@ -608,6 +610,8 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::requestWithOptions(
+             options.isCancellationRequested() &&
+             pThis->_options.resolveCancellationAsNullResponse) {
+           return pRequest;
++        } else if (pThis->_options.resolveErrorsAsNullResponse) {
++          return pRequest;
+         } else {
+           throw std::runtime_error(fmt::format(
+               "{} `{}` failed: {}",
+diff --git a/CesiumCurl/test/TestCurlAssetAccessor.cpp b/CesiumCurl/test/TestCurlAssetAccessor.cpp
+index 689c3b9..a5de28f 100644
+--- a/CesiumCurl/test/TestCurlAssetAccessor.cpp
++++ b/CesiumCurl/test/TestCurlAssetAccessor.cpp
+@@ -62,6 +62,20 @@ TEST_CASE("CurlAssetAccessor") {
+     CHECK(pRequest->response() == nullptr);
+   }
+ 
++  SUBCASE("can resolve a connection failure") {
++    options.resolveErrorsAsNullResponse = true;
++    pAssetAccessor = std::make_shared<CurlAssetAccessor>(options);
++    std::shared_ptr<CesiumAsync::IAssetRequest> pRequest =
++        pAssetAccessor
++            ->get(
++                asyncSystem,
++                "http://127.0.0.1:1/will-not-connect",
++                {})
++            .waitInMainThread();
++    REQUIRE(pRequest);
++    CHECK(pRequest->response() == nullptr);
++  }
++
+   SUBCASE("can do HTTP requests") {
+     std::shared_ptr<httplib::Server> pServer =
+         std::make_shared<httplib::Server>();

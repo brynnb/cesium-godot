@@ -1,0 +1,271 @@
+From 39214540ad9180b3cba8989eeee5b630018e6678 Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Wed, 12 Aug 2026 20:03:19 -0700
+Subject: [PATCH 1/2] Keep cache accounting stable across glTF modifier updates
+
+---
+ .../src/TilesetContentManager.cpp             | 73 ++++++++-------
+ .../src/TilesetContentManager.h               |  6 ++
+ .../test/TestTilesetContentManager.cpp        | 90 +++++++++++++++++++
+ 3 files changed, 139 insertions(+), 30 deletions(-)
+
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.cpp b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+index 8290a39..9ce8dea 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.cpp
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+@@ -1187,7 +1187,7 @@ void TilesetContentManager::reapplyGltfModifier(
+             pTile->getContent().getRenderContent();
+         CESIUM_ASSERT(pRenderContent != nullptr);
+ 
+-        this->notifyTileDoneLoading(pTile.get());
++        this->notifyTileLoadFinished();
+ 
+         if (std::holds_alternative<TileUnknownContent>(
+                 pair.result.contentKind)) {
+@@ -1213,8 +1213,10 @@ void TilesetContentManager::reapplyGltfModifier(
+                 pRenderContent->getRenderResources(),
+                 nullptr);
+           }
++          this->removeTileDataUsage(*pTile);
+           pRenderContent->setModel(
+               std::move(std::get<CesiumGltf::Model>(pair.result.contentKind)));
++          this->addTileDataUsage(*pTile);
+           pRenderContent->setRenderResources(pair.pRenderResources);
+           pRenderContent->setGltfModifierState(GltfModifierState::Idle);
+ 
+@@ -1246,7 +1248,7 @@ void TilesetContentManager::reapplyGltfModifier(
+               std::exception&& e) {
+             pTile->getContent().getRenderContent()->setGltfModifierState(
+                 GltfModifierState::WorkerDone);
+-            this->notifyTileDoneLoading(pTile.get());
++            this->notifyTileLoadFinished();
+             SPDLOG_LOGGER_ERROR(
+                 externals.pLogger,
+                 "An unexpected error occurred when reapplying GltfModifier: {}",
+@@ -1802,7 +1804,9 @@ bool TilesetContentManager::finishLoadingIncrementally(
+ 
+     // Replace model and render resources with the newly modified versions,
+     // discarding the old ones
++    this->removeTileDataUsage(tile);
+     pRenderContent->replaceWithModifiedModel();
++    this->addTileDataUsage(tile);
+ 
+     // Run the main thread part of loading.
+     if (this->_externals.pPrepareRendererResources) {
+@@ -2445,55 +2449,64 @@ void TilesetContentManager::notifyTileStartLoading(
+   ++this->_tileLoadsInProgress;
+ }
+ 
+-void TilesetContentManager::notifyTileDoneLoading(const Tile* pTile) noexcept {
++void TilesetContentManager::notifyTileLoadFinished() noexcept {
+   CESIUM_ASSERT(
+       this->_tileLoadsInProgress > 0 &&
+       "There are no tile loads currently in flight");
+   --this->_tileLoadsInProgress;
++}
++
++void TilesetContentManager::notifyTileDoneLoading(const Tile* pTile) noexcept {
++  this->notifyTileLoadFinished();
+   ++this->_loadedTilesCount;
+ 
+   if (pTile) {
+-    this->_tilesDataUsed += computeTileNonImageDataBytes(*pTile);
+-    for (const CesiumImage::ImageAsset* pImage : getUniqueTileImages(*pTile)) {
+-      auto [it, inserted] = this->_loadedSharedImageUsage.try_emplace(
+-          pImage,
+-          LoadedSharedImageUsage{0, pImage->getSizeBytes()});
+-      ++it->second.referenceCount;
+-      if (inserted) {
+-        this->_tilesDataUsed += it->second.sizeBytes;
+-      }
+-    }
++    this->addTileDataUsage(*pTile);
+   }
+ }
+ 
+ void TilesetContentManager::notifyTileLoadCanceled(
+     [[maybe_unused]] const Tile* pTile) noexcept {
+-  CESIUM_ASSERT(
+-      this->_tileLoadsInProgress > 0 &&
+-      "There are no tile loads currently in flight");
+-  --this->_tileLoadsInProgress;
++  this->notifyTileLoadFinished();
+ }
+ 
+ void TilesetContentManager::notifyTileUnloading(const Tile* pTile) noexcept {
+   if (pTile) {
+-    this->_tilesDataUsed -= computeTileNonImageDataBytes(*pTile);
+-    for (const CesiumImage::ImageAsset* pImage : getUniqueTileImages(*pTile)) {
+-      auto it = this->_loadedSharedImageUsage.find(pImage);
+-      CESIUM_ASSERT(it != this->_loadedSharedImageUsage.end());
+-      if (it == this->_loadedSharedImageUsage.end()) {
+-        continue;
+-      }
+-      CESIUM_ASSERT(it->second.referenceCount > 0);
+-      if (--it->second.referenceCount == 0) {
+-        this->_tilesDataUsed -= it->second.sizeBytes;
+-        this->_loadedSharedImageUsage.erase(it);
+-      }
+-    }
++    this->removeTileDataUsage(*pTile);
+   }
+ 
+   --this->_loadedTilesCount;
+ }
+ 
++void TilesetContentManager::addTileDataUsage(const Tile& tile) noexcept {
++  this->_tilesDataUsed += computeTileNonImageDataBytes(tile);
++  for (const CesiumImage::ImageAsset* pImage : getUniqueTileImages(tile)) {
++    auto [it, inserted] = this->_loadedSharedImageUsage.try_emplace(
++        pImage,
++        LoadedSharedImageUsage{0, pImage->getSizeBytes()});
++    ++it->second.referenceCount;
++    if (inserted) {
++      this->_tilesDataUsed += it->second.sizeBytes;
++    }
++  }
++}
++
++void TilesetContentManager::removeTileDataUsage(const Tile& tile) noexcept {
++  this->_tilesDataUsed -= computeTileNonImageDataBytes(tile);
++  for (const CesiumImage::ImageAsset* pImage : getUniqueTileImages(tile)) {
++    auto it = this->_loadedSharedImageUsage.find(pImage);
++    CESIUM_ASSERT(it != this->_loadedSharedImageUsage.end());
++    if (it == this->_loadedSharedImageUsage.end()) {
++      continue;
++    }
++    CESIUM_ASSERT(it->second.referenceCount > 0);
++    if (--it->second.referenceCount == 0) {
++      this->_tilesDataUsed -= it->second.sizeBytes;
++      this->_loadedSharedImageUsage.erase(it);
++    }
++  }
++}
++
+ template <class TilesetContentLoaderType>
+ void TilesetContentManager::propagateTilesetContentLoaderResult(
+     TilesetLoadType type,
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.h b/Cesium3DTilesSelection/src/TilesetContentManager.h
+index a79c75a..4ba2991 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.h
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.h
+@@ -224,12 +224,18 @@ private:
+ 
+   void notifyTileStartLoading(const Tile* pTile) noexcept;
+ 
++  void notifyTileLoadFinished() noexcept;
++
+   void notifyTileDoneLoading(const Tile* pTile) noexcept;
+ 
+   void notifyTileLoadCanceled(const Tile* pTile) noexcept;
+ 
+   void notifyTileUnloading(const Tile* pTile) noexcept;
+ 
++  void addTileDataUsage(const Tile& tile) noexcept;
++
++  void removeTileDataUsage(const Tile& tile) noexcept;
++
+   void reapplyGltfModifier(
+       Tile& tile,
+       const TilesetOptions& tilesetOptions,
+diff --git a/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp b/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp
+index de21583..fe8141c 100644
+--- a/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp
++++ b/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp
+@@ -2081,3 +2081,93 @@ TEST_CASE("Test glTF modifier state machine") {
+     CHECK(pMockedPrepareRendererResources->totalAllocation == 0);
+   }
+ }
++
++TEST_CASE("glTF modifier reapplies replace accounted image assets") {
++  Cesium3DTilesContent::registerAllTileContentTypes();
++
++  auto pAssetAccessor = std::make_shared<SimpleAssetAccessor>(
++      std::map<std::string, std::shared_ptr<SimpleAssetRequest>>{});
++  auto pPrepareRendererResources =
++      std::make_shared<SimplePrepareRendererResource>();
++  CesiumAsync::AsyncSystem asyncSystem{std::make_shared<SimpleTaskProcessor>()};
++  auto pCreditSystem = std::make_shared<CreditSystem>();
++
++  class ImageSwappingGltfModifier final : public GltfModifier {
++  public:
++    int32_t applyCallCount = 0;
++
++    CesiumAsync::Future<std::optional<GltfModifierOutput>>
++    apply(GltfModifierInput&& input) override {
++      ++this->applyCallCount;
++      GltfModifierOutput output{.modifiedModel = input.previousModel};
++      REQUIRE(output.modifiedModel.images.size() == 1);
++      output.modifiedModel.images[0].pAsset.emplace();
++      output.modifiedModel.images[0].pAsset->sizeBytes =
++          100 * (this->applyCallCount + 1);
++      return input.asyncSystem.createResolvedFuture(
++          std::make_optional(std::move(output)));
++    }
++  };
++
++  auto pModifier = std::make_shared<ImageSwappingGltfModifier>();
++  TilesetExternals externals{
++      pAssetAccessor,
++      pPrepareRendererResources,
++      asyncSystem,
++      pCreditSystem};
++  externals.pGltfModifier = pModifier;
++
++  CesiumGltf::Model initialModel;
++  initialModel.images.emplace_back().pAsset.emplace();
++  initialModel.images[0].pAsset->sizeBytes = 100;
++
++  auto pLoader = std::make_unique<SimpleTilesetContentLoader>();
++  pLoader->mockLoadTileContent = {
++      std::move(initialModel),
++      CesiumGeometry::Axis::Y,
++      std::nullopt,
++      std::nullopt,
++      std::nullopt,
++      nullptr,
++      nullptr,
++      {},
++      TileLoadResultState::Success};
++
++  auto pRootTile = std::make_unique<Tile>(pLoader.get());
++  pRootTile->setTileID("image-swap");
++
++  TilesetOptions options{};
++  IntrusivePointer<TilesetContentManager> pManager =
++      TilesetContentManager::createFromLoader(
++          externals,
++          options,
++          std::move(pLoader),
++          std::move(pRootTile));
++  pManager->waitUntilIdle(5000.0);
++
++  Tile& tile = *pManager->getRootTile();
++  pManager->loadTileContent(tile, options);
++  pManager->waitUntilIdle(5000.0);
++  pManager->updateTileContent(tile, options);
++  REQUIRE(tile.getState() == TileLoadState::Done);
++  REQUIRE(pManager->getTotalDataUsed() == 100);
++  const int32_t loadedTilesAfterInitialLoad =
++      pManager->getNumberOfTilesLoaded();
++
++  for (int64_t expectedImageBytes : {200, 300}) {
++    pModifier->trigger();
++    pManager->loadTileContent(tile, options);
++    pManager->waitUntilIdle(5000.0);
++    REQUIRE(tile.needsMainThreadLoading(pModifier.get()));
++
++    pManager->finishLoading(tile, options);
++    CHECK(tile.getState() == TileLoadState::Done);
++    CHECK(pManager->getTotalDataUsed() == expectedImageBytes);
++    CHECK(pManager->getNumberOfTilesLoaded() == loadedTilesAfterInitialLoad);
++  }
++
++  CHECK(pManager->unloadTileContent(tile));
++  CHECK(pManager->getTotalDataUsed() == 0);
++  CHECK(
++      pManager->getNumberOfTilesLoaded() == loadedTilesAfterInitialLoad - 1);
++}
+-- 
+2.53.0
+

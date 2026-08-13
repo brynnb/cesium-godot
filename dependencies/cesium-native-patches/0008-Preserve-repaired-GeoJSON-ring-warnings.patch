@@ -1,0 +1,97 @@
+From c126043db205379787c8f30dc2aae6b40fcdc54e Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Wed, 12 Aug 2026 16:48:13 -0700
+Subject: [PATCH 08/11] Preserve repaired GeoJSON ring warnings
+
+---
+ CesiumVectorData/src/GeoJsonDocument.cpp    |  5 ++-
+ CesiumVectorData/test/TestGeoJsonParser.cpp | 36 ++++++++++++++++++++-
+ 2 files changed, 39 insertions(+), 2 deletions(-)
+
+diff --git a/CesiumVectorData/src/GeoJsonDocument.cpp b/CesiumVectorData/src/GeoJsonDocument.cpp
+index a0a8e47..0fda3c5 100644
+--- a/CesiumVectorData/src/GeoJsonDocument.cpp
++++ b/CesiumVectorData/src/GeoJsonDocument.cpp
+@@ -271,6 +271,7 @@ Result<GeoJsonObject> parseGeoJsonObject(
+       if (!childResult.value) {
+         return childResult;
+       }
++      errorList.merge(std::move(childResult.errors));
+ 
+       geometry = std::make_unique<GeoJsonObject>(std::move(*childResult.value));
+     }
+@@ -515,6 +516,7 @@ Result<GeoJsonObject> parseGeoJsonObject(
+     if (!ringsResult.value) {
+       return Result<GeoJsonObject>(std::move(ringsResult.errors));
+     }
++    errorList.merge(std::move(ringsResult.errors));
+ 
+     return Result<GeoJsonObject>(
+         GeoJsonObject{GeoJsonPolygon{
+@@ -548,6 +550,7 @@ Result<GeoJsonObject> parseGeoJsonObject(
+       if (!ringsResult.value) {
+         return Result<GeoJsonObject>(std::move(ringsResult.errors));
+       }
++      errorList.merge(std::move(ringsResult.errors));
+ 
+       polygons.emplace_back(std::move(*ringsResult.value));
+     }
+@@ -744,4 +747,4 @@ GeoJsonDocument::GeoJsonDocument(
+     std::vector<VectorDocumentAttribution>&& attributions)
+     : rootObject(std::move(rootObject)),
+       attributions(std::move(attributions)) {}
+-} // namespace CesiumVectorData
+\ No newline at end of file
++} // namespace CesiumVectorData
+diff --git a/CesiumVectorData/test/TestGeoJsonParser.cpp b/CesiumVectorData/test/TestGeoJsonParser.cpp
+index d93fcda..b8e797a 100644
+--- a/CesiumVectorData/test/TestGeoJsonParser.cpp
++++ b/CesiumVectorData/test/TestGeoJsonParser.cpp
+@@ -482,6 +482,40 @@ TEST_CASE("Parse MultiPolygon primitives") {
+   }
+ }
+ 
++TEST_CASE("Preserve warnings when repairing unclosed polygon rings") {
++  const std::string warningSuffix =
++      " 'coordinates' member can only contain closed rings, requiring the "
++      "first and last coordinates of each ring to have identical values. The "
++      "first position has been duplicated to make a valid closed ring.";
++
++  SUBCASE("Polygon") {
++    Result<GeoJsonDocument> doc = GeoJsonDocument::fromGeoJson(stringToBytes(
++        R"==({"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,1]]]})=="));
++
++    REQUIRE(doc.value);
++    REQUIRE(doc.errors.warnings.size() == 1);
++    CHECK(doc.errors.warnings[0] == "Polygon" + warningSuffix);
++  }
++
++  SUBCASE("MultiPolygon") {
++    Result<GeoJsonDocument> doc = GeoJsonDocument::fromGeoJson(stringToBytes(
++        R"==({"type":"MultiPolygon","coordinates":[[[[0,0],[1,0],[1,1],[0,1]]]]})=="));
++
++    REQUIRE(doc.value);
++    REQUIRE(doc.errors.warnings.size() == 1);
++    CHECK(doc.errors.warnings[0] == "MultiPolygon" + warningSuffix);
++  }
++
++  SUBCASE("Feature geometry") {
++    Result<GeoJsonDocument> doc = GeoJsonDocument::fromGeoJson(stringToBytes(
++        R"==({"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,1]]]},"properties":null})=="));
++
++    REQUIRE(doc.value);
++    REQUIRE(doc.errors.warnings.size() == 1);
++    CHECK(doc.errors.warnings[0] == "Polygon" + warningSuffix);
++  }
++}
++
+ TEST_CASE("Parsing GeometryCollection") {
+   SUBCASE("Valid GeometryCollection") {
+     expectParserResult(
+@@ -746,4 +780,4 @@ TEST_CASE("Load GeoJSON from URL") {
+   CHECK(
+       result.value->rootObject.get<GeoJsonPoint>().coordinates ==
+       glm::dvec3(42.3, 49.34, 11.3413));
+-}
+\ No newline at end of file
++}

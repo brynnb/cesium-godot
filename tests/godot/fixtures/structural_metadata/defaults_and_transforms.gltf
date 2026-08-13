@@ -1,0 +1,237 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "Cesium for Godot structural metadata test"
+  },
+  "extensionsUsed": [
+    "EXT_structural_metadata",
+    "EXT_mesh_features",
+    "KHR_texture_transform"
+  ],
+  "extensions": {
+    "EXT_structural_metadata": {
+      "schema": {
+        "id": "DefaultsAndTransforms",
+        "classes": {
+          "testClass": {
+            "properties": {
+              "default_only": {
+                "type": "SCALAR",
+                "componentType": "UINT32",
+                "default": 10
+              },
+              "transformed": {
+                "type": "SCALAR",
+                "componentType": "UINT8",
+                "normalized": true,
+                "offset": 2.0,
+                "scale": 4.0,
+                "min": 2.0,
+                "max": 6.0,
+                "noData": 255,
+                "default": 99.0
+              }
+            }
+          },
+          "vertexClass": {
+            "properties": {
+              "height": {
+                "type": "SCALAR",
+                "componentType": "FLOAT32",
+                "offset": 10.0,
+                "scale": 2.0
+              },
+              "default_vertex": {
+                "type": "SCALAR",
+                "componentType": "UINT16",
+                "default": 7
+              },
+              "unsupported_attribute": {
+                "type": "STRING"
+              }
+            }
+          },
+          "textureClass": {
+            "properties": {
+              "category": {
+                "type": "SCALAR",
+                "componentType": "UINT8",
+                "normalized": true,
+                "offset": 2.0,
+                "scale": 4.0,
+                "noData": 3,
+                "default": 99.0
+              },
+              "default_texel": {
+                "type": "SCALAR",
+                "componentType": "UINT8",
+                "default": 42
+              },
+              "unsupported_matrix": {
+                "type": "MAT2",
+                "componentType": "UINT8"
+              }
+            }
+          }
+        }
+      },
+      "propertyTables": [
+        {
+          "name": "Defaults and transforms",
+          "class": "testClass",
+          "count": 3,
+          "properties": {
+            "transformed": {"values": 2}
+          }
+        }
+      ],
+      "propertyAttributes": [
+        {
+          "name": "Vertex metadata",
+          "class": "vertexClass",
+          "properties": {
+            "height": {"attribute": "_HEIGHT"},
+            "unsupported_attribute": {"attribute": "_BAD"}
+          }
+        },
+        {
+          "name": "Invalid vertex metadata",
+          "class": "missingClass",
+          "properties": {}
+        }
+      ],
+      "propertyTextures": [
+        {
+          "name": "Surface metadata",
+          "class": "textureClass",
+          "properties": {
+            "category": {
+              "index": 0,
+              "texCoord": 0,
+              "channels": [0],
+              "offset": 5.0,
+              "scale": 2.0,
+              "extensions": {
+                "KHR_texture_transform": {"offset": [0.1, 0.0]}
+              }
+            },
+            "unsupported_matrix": {
+              "index": 0,
+              "texCoord": 0,
+              "channels": [0, 1, 2, 3]
+            }
+          }
+        },
+        {
+          "name": "Invalid surface metadata",
+          "class": "missingClass",
+          "properties": {}
+        }
+      ]
+    }
+  },
+  "scene": 0,
+  "scenes": [{"nodes": [0]}],
+  "nodes": [{"mesh": 0}],
+  "samplers": [
+    {"wrapS": 33071, "wrapT": 33071, "magFilter": 9728, "minFilter": 9728}
+  ],
+  "textures": [{"sampler": 0, "source": 0}],
+  "images": [
+    {
+      "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGNgYGD4zwjEDExAghmIAR4dBAM6tzxNAAAAAElFTkSuQmCC"
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "extensions": {
+            "EXT_structural_metadata": {
+              "propertyTextures": [0, 1, 99],
+              "propertyAttributes": [0, 1, 99]
+            },
+            "EXT_mesh_features": {
+              "featureIds": [
+                {"featureCount": 3, "propertyTable": 0},
+                {
+                  "featureCount": 3,
+                  "propertyTable": 0,
+                  "texture": {
+                    "index": 0,
+                    "texCoord": 0,
+                    "channels": [0],
+                    "extensions": {
+                      "KHR_texture_transform": {"offset": [0.1, 0.0]}
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "attributes": {
+            "POSITION": 0,
+            "TEXCOORD_0": 2,
+            "_HEIGHT": 3,
+            "_BAD": 3
+          },
+          "indices": 1,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "buffers": [
+    {
+      "uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAADIQgAAAAAAAAAAAAAAAAAAAAAAAMhCAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAABAAIA",
+      "byteLength": 66
+    },
+    {
+      "uri": "data:application/octet-stream;base64,AH//",
+      "byteLength": 3
+    },
+    {
+      "uri": "data:application/octet-stream;base64,AACAPgAAgD4AAEA/AACAPgAAgD4AAEA/",
+      "byteLength": 24
+    },
+    {
+      "uri": "data:application/octet-stream;base64,AADAPwAAIEAAAGBA",
+      "byteLength": 12
+    }
+  ],
+  "bufferViews": [
+    {"buffer": 0, "byteOffset": 0, "byteLength": 36, "target": 34962},
+    {"buffer": 0, "byteOffset": 60, "byteLength": 6, "target": 34963},
+    {"buffer": 1, "byteOffset": 0, "byteLength": 3},
+    {"buffer": 2, "byteOffset": 0, "byteLength": 24, "target": 34962},
+    {"buffer": 3, "byteOffset": 0, "byteLength": 12, "target": 34962}
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 3,
+      "type": "VEC3",
+      "min": [0, 0, 0],
+      "max": [100, 0, 100]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5123,
+      "count": 3,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5126,
+      "count": 3,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 4,
+      "componentType": 5126,
+      "count": 3,
+      "type": "SCALAR"
+    }
+  ]
+}

@@ -1,0 +1,398 @@
+From 9a8575c2dd8730610e4a376b947ff015d2e3cae8 Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Wed, 12 Aug 2026 19:54:32 -0700
+Subject: [PATCH 01/11] Resume renderer preparation across frames
+
+---
+ .../IPrepareRendererResources.h               | 44 ++++++++++
+ .../src/TilesetContentManager.cpp             | 81 +++++++++++++------
+ .../src/TilesetContentManager.h               |  5 ++
+ .../test/SimplePrepareRendererResource.h      | 16 ++++
+ .../test/TestTileLoadRequester.cpp            | 73 +++++++++++++++++
+ 5 files changed, 195 insertions(+), 24 deletions(-)
+
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/IPrepareRendererResources.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/IPrepareRendererResources.h
+index dbda49f..5548421 100644
+--- a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/IPrepareRendererResources.h
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/IPrepareRendererResources.h
+@@ -53,6 +53,23 @@ struct TileLoadResultAndRenderResources {
+   void* pRenderResources{nullptr};
+ };
+ 
++/**
++ * @brief The result of one bounded main-thread renderer preparation step.
++ */
++struct MainThreadRendererResourcesPreparationResult {
++  /**
++   * @brief The completed renderer resources, or `nullptr` while preparation is
++   * incomplete.
++   */
++  void* pRenderResources{nullptr};
++
++  /**
++   * @brief Whether ownership of the load-thread result has been consumed and
++   * renderer preparation is complete.
++   */
++  bool isComplete{true};
++};
++
+ /**
+  * @brief When implemented for a rendering engine, allows renderer resources to
+  * be created and destroyed under the control of a {@link Tileset}.
+@@ -109,6 +126,33 @@ public:
+    */
+   virtual void* prepareInMainThread(Tile& tile, void* pLoadThreadResult) = 0;
+ 
++  /**
++   * @brief Performs a bounded portion of main-thread renderer preparation.
++   *
++   * The default preserves the original one-shot contract by calling
++   * {@link prepareInMainThread}. Implementations may instead retain incremental
++   * state inside `pLoadThreadResult`, return `isComplete == false`, and resume
++   * when called again on a later frame. While incomplete, the returned renderer
++   * resource pointer must be `nullptr` and ownership of `pLoadThreadResult`
++   * remains with the implementation. An incremental implementation must make
++   * finite forward progress on every call and eventually complete, including
++   * when the time budget is zero (the unthrottled compatibility path).
++   *
++   * @param tile The tile being prepared.
++   * @param pLoadThreadResult The still-owned load-thread preparation result.
++   * @param timeBudgetMilliseconds The aggregate time remaining in this frame,
++   * or zero when preparation is unthrottled.
++   */
++  virtual MainThreadRendererResourcesPreparationResult
++  prepareInMainThreadIncrementally(
++      Tile& tile,
++      void* pLoadThreadResult,
++      double /*timeBudgetMilliseconds*/) {
++    return MainThreadRendererResourcesPreparationResult{
++        this->prepareInMainThread(tile, pLoadThreadResult),
++        true};
++  }
++
+   /**
+    * @brief Frees previously-prepared renderer resources.
+    *
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.cpp b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+index 52ed00b..69d6324 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.cpp
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+@@ -1484,9 +1484,9 @@ void TilesetContentManager::unloadAll() {
+ 
+ bool TilesetContentManager::waitUntilIdle(
+     double maximumWaitTimeInMilliseconds) {
+-  auto start = std::chrono::system_clock::now();
++  auto start = std::chrono::steady_clock::now();
+   auto end = (maximumWaitTimeInMilliseconds <= 0.0)
+-                 ? std::chrono::time_point<std::chrono::system_clock>::max()
++                 ? std::chrono::time_point<std::chrono::steady_clock>::max()
+                  : (start + std::chrono::microseconds(static_cast<int64_t>(
+                                 1000.0 * maximumWaitTimeInMilliseconds)));
+ 
+@@ -1497,7 +1497,7 @@ bool TilesetContentManager::waitUntilIdle(
+     this->_externals.pAssetAccessor->tick();
+     this->_externals.asyncSystem.dispatchMainThreadTasks();
+ 
+-    auto time = std::chrono::system_clock::now();
++    auto time = std::chrono::steady_clock::now();
+     if (time >= end) {
+       break;
+     }
+@@ -1515,7 +1515,7 @@ bool TilesetContentManager::waitUntilIdle(
+       rasterOverlayTilesLoading += pActivated->getNumberOfTilesLoading();
+     }
+ 
+-    auto time = std::chrono::system_clock::now();
++    auto time = std::chrono::steady_clock::now();
+     if (time >= end) {
+       break;
+     }
+@@ -1591,13 +1591,21 @@ int64_t TilesetContentManager::getTotalDataUsed() const noexcept {
+ void TilesetContentManager::finishLoading(
+     Tile& tile,
+     const TilesetOptions& tilesetOptions) {
++  while (!this->finishLoadingIncrementally(tile, tilesetOptions, 0.0)) {
++  }
++}
++
++bool TilesetContentManager::finishLoadingIncrementally(
++    Tile& tile,
++    const TilesetOptions& tilesetOptions,
++    double timeBudgetMilliseconds) {
+   TileContent& content = tile.getContent();
+ 
+   // If this tile doesn't have render content, there's nothing to finish
+   // loading.
+   TileRenderContent* pRenderContent = content.getRenderContent();
+   if (pRenderContent == nullptr)
+-    return;
++    return true;
+ 
+   if (this->_externals.pGltfModifier &&
+       this->_externals.pGltfModifier->needsMainThreadModification(tile)) {
+@@ -1624,15 +1632,31 @@ void TilesetContentManager::finishLoading(
+     }
+ 
+     pRenderContent->setGltfModifierState(GltfModifierState::Idle);
+-    return;
++    return true;
+   }
+ 
+   // None of the processing below makes sense until the Tile hits the
+   // ContentLoaded state.
+   if (tile.getState() != TileLoadState::ContentLoaded)
+-    return;
++    return true;
+ 
+-  // add copyright
++  void* pWorkerRenderResources = pRenderContent->getRenderResources();
++  if (this->_externals.pPrepareRendererResources) {
++    MainThreadRendererResourcesPreparationResult preparation =
++        this->_externals.pPrepareRendererResources
++            ->prepareInMainThreadIncrementally(
++                tile,
++                pWorkerRenderResources,
++                timeBudgetMilliseconds);
++    if (!preparation.isComplete) {
++      CESIUM_ASSERT(preparation.pRenderResources == nullptr);
++      return false;
++    }
++    pRenderContent->setRenderResources(preparation.pRenderResources);
++  }
++
++  // Add copyright only after incremental renderer preparation completes so
++  // repeated steps cannot duplicate credits.
+   CreditSystem* pCreditSystem = this->_externals.pCreditSystem.get();
+   if (pCreditSystem) {
+     std::vector<std::string_view> creditStrings =
+@@ -1651,21 +1675,12 @@ void TilesetContentManager::finishLoading(
+     pRenderContent->setCredits(credits);
+   }
+ 
+-  // Run the main thread part of loading.
+-  void* pWorkerRenderResources = pRenderContent->getRenderResources();
+-  if (this->_externals.pPrepareRendererResources) {
+-    void* pMainThreadRenderResources =
+-        this->_externals.pPrepareRendererResources->prepareInMainThread(
+-            tile,
+-            pWorkerRenderResources);
+-    pRenderContent->setRenderResources(pMainThreadRenderResources);
+-  }
+-
+   tile.setState(TileLoadState::Done);
+ 
+   // This allows the raster tile to be updated and children to be created, if
+   // necessary.
+   updateTileContent(tile, tilesetOptions);
++  return true;
+ }
+ 
+ void TilesetContentManager::markTileIneligibleForContentUnloading(Tile& tile) {
+@@ -1690,9 +1705,9 @@ void TilesetContentManager::unloadCachedBytes(
+ 
+   // A time budget of 0.0 indicates we shouldn't throttle cache unloads. So set
+   // the end time to the max time_point in that case.
+-  auto start = std::chrono::system_clock::now();
++  auto start = std::chrono::steady_clock::now();
+   auto end = (timeBudgetMilliseconds <= 0.0)
+-                 ? std::chrono::time_point<std::chrono::system_clock>::max()
++                 ? std::chrono::time_point<std::chrono::steady_clock>::max()
+                  : (start + std::chrono::microseconds(static_cast<int64_t>(
+                                 1000.0 * timeBudgetMilliseconds)));
+ 
+@@ -1717,7 +1732,7 @@ void TilesetContentManager::unloadCachedBytes(
+ 
+     pTile = pNext;
+ 
+-    auto time = std::chrono::system_clock::now();
++    auto time = std::chrono::steady_clock::now();
+     if (time >= end) {
+       break;
+     }
+@@ -1937,7 +1952,7 @@ void TilesetContentManager::processMainThreadLoadRequests(
+ 
+   double timeBudget = options.mainThreadLoadingTimeLimit;
+ 
+-  auto start = std::chrono::system_clock::now();
++  auto start = std::chrono::steady_clock::now();
+   auto end = start + std::chrono::microseconds(
+                          static_cast<int64_t>(1000.0 * timeBudget));
+ 
+@@ -1952,9 +1967,27 @@ void TilesetContentManager::processMainThreadLoadRequests(
+     if (pToLoad->_referenceCount == 0)
+       continue;
+ 
+-    this->finishLoading(*pToLoad, options);
++    double remainingMilliseconds = 0.0;
++    if (timeBudget > 0.0) {
++      remainingMilliseconds = std::max(
++          0.0,
++          std::chrono::duration<double, std::milli>(
++              end - std::chrono::steady_clock::now())
++              .count());
++      if (remainingMilliseconds <= 0.0) {
++        break;
++      }
++    }
++    if (!this->finishLoadingIncrementally(
++            *pToLoad,
++            options,
++            remainingMilliseconds)) {
++      // An incomplete renderer consumed this frame's useful preparation
++      // window. The still-ContentLoaded tile will be queued again next frame.
++      break;
++    }
+ 
+-    auto time = std::chrono::system_clock::now();
++    auto time = std::chrono::steady_clock::now();
+     if (timeBudget > 0.0 && time >= end) {
+       break;
+     }
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.h b/Cesium3DTilesSelection/src/TilesetContentManager.h
+index 31b1f2d..be2e1d5 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.h
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.h
+@@ -190,6 +190,11 @@ public:
+   const CesiumUtility::CreditSource& getCreditSource() const noexcept;
+ 
+ private:
++  bool finishLoadingIncrementally(
++      Tile& tile,
++      const TilesetOptions& tilesetOptions,
++      double timeBudgetMilliseconds);
++
+   TilesetContentManager(
+       const TilesetExternals& externals,
+       const TilesetOptions& tilesetOptions);
+diff --git a/Cesium3DTilesSelection/test/SimplePrepareRendererResource.h b/Cesium3DTilesSelection/test/SimplePrepareRendererResource.h
+index 202e1a6..b401614 100644
+--- a/Cesium3DTilesSelection/test/SimplePrepareRendererResource.h
++++ b/Cesium3DTilesSelection/test/SimplePrepareRendererResource.h
+@@ -14,6 +14,8 @@ class SimplePrepareRendererResource
+     : public Cesium3DTilesSelection::IPrepareRendererResources {
+ public:
+   std::atomic<size_t> totalAllocation{};
++  size_t incrementalStepsRemaining = 0;
++  size_t mainThreadPreparationCount = 0;
+ 
+   struct AllocationResult {
+     AllocationResult(std::atomic<size_t>& allocCount_)
+@@ -43,6 +45,7 @@ public:
+   virtual void* prepareInMainThread(
+       Cesium3DTilesSelection::Tile& /*tile*/,
+       void* pLoadThreadResult) override {
++    ++this->mainThreadPreparationCount;
+     if (pLoadThreadResult) {
+       AllocationResult* loadThreadResult =
+           reinterpret_cast<AllocationResult*>(pLoadThreadResult);
+@@ -52,6 +55,19 @@ public:
+     return new AllocationResult{totalAllocation};
+   }
+ 
++  virtual MainThreadRendererResourcesPreparationResult
++  prepareInMainThreadIncrementally(
++      Cesium3DTilesSelection::Tile& tile,
++      void* pLoadThreadResult,
++      double /*timeBudgetMilliseconds*/) override {
++    if (this->incrementalStepsRemaining > 1) {
++      --this->incrementalStepsRemaining;
++      return {nullptr, false};
++    }
++    this->incrementalStepsRemaining = 0;
++    return {this->prepareInMainThread(tile, pLoadThreadResult), true};
++  }
++
+   virtual void free(
+       Cesium3DTilesSelection::Tile& /*tile*/,
+       void* pLoadThreadResult,
+diff --git a/Cesium3DTilesSelection/test/TestTileLoadRequester.cpp b/Cesium3DTilesSelection/test/TestTileLoadRequester.cpp
+index 1587326..9ab6915 100644
+--- a/Cesium3DTilesSelection/test/TestTileLoadRequester.cpp
++++ b/Cesium3DTilesSelection/test/TestTileLoadRequester.cpp
+@@ -4,6 +4,8 @@
+ #include <CesiumNativeTests/SimpleAssetAccessor.h>
+ #include <CesiumNativeTests/SimpleTaskProcessor.h>
+ 
++#include "SimplePrepareRendererResource.h"
++
+ #include <doctest/doctest.h>
+ 
+ using namespace Cesium3DTilesSelection;
+@@ -149,6 +151,77 @@ TEST_CASE("TileLoadRequester") {
+       pTileset->loadTiles();
+       CHECK(pToLoad->getState() == TileLoadState::Done);
+     }
++
++    SUBCASE("resumes incremental main-thread renderer preparation") {
++      auto pIncrementalRenderer =
++          std::make_shared<SimplePrepareRendererResource>();
++      pIncrementalRenderer->incrementalStepsRemaining = 2;
++      TilesetExternals incrementalExternals = externals;
++      incrementalExternals.pPrepareRendererResources = pIncrementalRenderer;
++      TilesetOptions options;
++      options.mainThreadLoadingTimeLimit = 5.0;
++      auto pIncrementalTileset =
++          EllipsoidTilesetLoader::createTileset(incrementalExternals, options);
++      TestTileLoadRequester requester;
++      pIncrementalTileset->registerLoadRequester(requester);
++
++      const Tile* pToLoad =
++          &pIncrementalTileset->getRootTile()->getChildren()[1];
++      requester.setWorkerThreadQueue({pToLoad});
++      pIncrementalTileset->loadTiles();
++      while (pToLoad->getState() == TileLoadState::ContentLoading) {
++        incrementalExternals.asyncSystem.dispatchMainThreadTasks();
++      }
++      REQUIRE(pToLoad->getState() == TileLoadState::ContentLoaded);
++      void* pWorkerResult =
++          pToLoad->getContent().getRenderContent()->getRenderResources();
++      REQUIRE(pWorkerResult != nullptr);
++
++      requester.setMainThreadQueue({pToLoad});
++      pIncrementalTileset->loadTiles();
++      CHECK(pToLoad->getState() == TileLoadState::ContentLoaded);
++      CHECK(
++          pToLoad->getContent().getRenderContent()->getRenderResources() ==
++          pWorkerResult);
++      CHECK(pIncrementalRenderer->mainThreadPreparationCount == 0);
++
++      requester.setMainThreadQueue({pToLoad});
++      pIncrementalTileset->loadTiles();
++      CHECK(pToLoad->getState() == TileLoadState::Done);
++      CHECK(pIncrementalRenderer->mainThreadPreparationCount == 1);
++    }
++
++    SUBCASE("releases incomplete incremental renderer preparation") {
++      auto pIncrementalRenderer =
++          std::make_shared<SimplePrepareRendererResource>();
++      pIncrementalRenderer->incrementalStepsRemaining = 3;
++      TilesetExternals incrementalExternals = externals;
++      incrementalExternals.pPrepareRendererResources = pIncrementalRenderer;
++      TilesetOptions options;
++      options.mainThreadLoadingTimeLimit = 5.0;
++      auto pIncrementalTileset =
++          EllipsoidTilesetLoader::createTileset(incrementalExternals, options);
++      TestTileLoadRequester requester;
++      pIncrementalTileset->registerLoadRequester(requester);
++
++      const Tile* pToLoad =
++          &pIncrementalTileset->getRootTile()->getChildren()[1];
++      requester.setWorkerThreadQueue({pToLoad});
++      pIncrementalTileset->loadTiles();
++      while (pToLoad->getState() == TileLoadState::ContentLoading) {
++        incrementalExternals.asyncSystem.dispatchMainThreadTasks();
++      }
++      REQUIRE(pToLoad->getState() == TileLoadState::ContentLoaded);
++      REQUIRE(pIncrementalRenderer->totalAllocation == 1);
++
++      requester.setMainThreadQueue({pToLoad});
++      pIncrementalTileset->loadTiles();
++      REQUIRE(pToLoad->getState() == TileLoadState::ContentLoaded);
++      REQUIRE(pIncrementalRenderer->mainThreadPreparationCount == 0);
++
++      pIncrementalTileset.reset();
++      CHECK(pIncrementalRenderer->totalAllocation == 0);
++    }
+   }
+ 
+   SUBCASE("with a simple flat tileset") {

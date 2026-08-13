@@ -1,0 +1,210 @@
+[gd_scene load_steps=7 format=3 uid="uid://bg13hhs46nnn"]
+
+[ext_resource type="Texture2D" uid="uid://c61otilqm83bc" path="res://addons/cesium_godot/resources/icons/zap.svg" id="1_8k3s0"]
+[ext_resource type="Texture2D" uid="uid://88d5nak40tib" path="res://addons/cesium_godot/resources/icons/x.svg" id="1_g1lxp"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_g1lxp"]
+bg_color = Color(0.29219002, 0.29219005, 0.29218993, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0, 0, 1)
+border_blend = true
+
+[sub_resource type="LabelSettings" id="LabelSettings_f4i75"]
+font_size = 24
+
+[sub_resource type="LabelSettings" id="LabelSettings_200ih"]
+font_color = Color(1, 1, 1, 0.64705884)
+
+[sub_resource type="LabelSettings" id="LabelSettings_r4tjn"]
+outline_size = 1
+
+[node name="Popup" type="Popup"]
+disable_3d = true
+transparent_bg = true
+oversampling_override = 1.0
+title = "Cesium Token Utilities"
+initial_position = 2
+size = Vector2i(700, 800)
+visible = true
+wrap_controls = false
+unresizable = false
+transparent = true
+exclude_from_capture = true
+max_size = Vector2i(700, 800)
+content_scale_mode = 1
+
+[node name="Panel" type="Panel" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_g1lxp")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginBox" type="MarginContainer" parent="Panel/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/VBoxContainer/MarginBox"]
+layout_mode = 2
+
+[node name="TitleBar" type="HBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
+custom_minimum_size = Vector2(0, 45)
+layout_mode = 2
+
+[node name="PanelTitle" type="Label" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/TitleBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "CESIUM ion Token Management"
+label_settings = SubResource("LabelSettings_f4i75")
+vertical_alignment = 1
+
+[node name="CloseButton" type="Button" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/TitleBar"]
+layout_mode = 2
+icon = ExtResource("1_g1lxp")
+flat = true
+icon_alignment = 1
+
+[node name="DescriptionLabel" type="Label" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
+custom_minimum_size = Vector2(20, 10)
+layout_mode = 2
+text = "3D Tiles For Godot embeds a Cesium ion token in your project in order to allow it to access the assets you add to your levels. Select the Cesium ion token to use."
+label_settings = SubResource("LabelSettings_200ih")
+autowrap_mode = 2
+
+[node name="HSeparator" type="HSeparator" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="CreateNewTokenLine" type="VBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
+layout_mode = 2
+
+[node name="NewTokenCheck" type="CheckBox" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/CreateNewTokenLine"]
+layout_mode = 2
+text = "Create a new token"
+
+[node name="TokenName" type="TextEdit" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/CreateNewTokenLine"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Name of your token here"
+scroll_fit_content_height = true
+
+[node name="UseExistingTokenLine" type="VBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
+layout_mode = 2
+
+[node name="ExistingTokenCheck" type="CheckBox" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/UseExistingTokenLine"]
+layout_mode = 2
+text = "Use existing token"
+
+[node name="ExistingToken" type="OptionButton" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/UseExistingTokenLine"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+autowrap_mode = 2
+
+[node name="EnterATokenLine" type="VBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
+layout_mode = 2
+
+[node name="SpecificTokenCheck" type="CheckBox" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/EnterATokenLine"]
+layout_mode = 2
+button_pressed = true
+text = "Enter a specific token"
+
+[node name="TokenName" type="TextEdit" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/EnterATokenLine"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Your token here"
+scroll_fit_content_height = true
+
+[node name="Spacing3" type="MarginContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
+custom_minimum_size = Vector2(150, 50)
+layout_mode = 2
+
+[node name="ConfigurationContainer" type="HBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/ConfigurationContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Label" type="Label" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/ConfigurationContainer/VBoxContainer"]
+layout_mode = 2
+text = "Configuration to write to"
+label_settings = SubResource("LabelSettings_r4tjn")
+
+[node name="AssetListGroup" type="HBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/AssetListGroup"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Label" type="Label" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/AssetListGroup/VBoxContainer"]
+layout_mode = 2
+text = "The selected token has access to:"
+label_settings = SubResource("LabelSettings_r4tjn")
+
+[node name="AssetList" type="OptionButton" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/AssetListGroup"]
+custom_minimum_size = Vector2(100, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="AssetId" type="TextEdit" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/AssetListGroup"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+editable = false
+
+[node name="MarginContainer3" type="MarginContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
+custom_minimum_size = Vector2(1.45519e-11, 50)
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="TextureRect" type="TextureRect" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+texture = ExtResource("1_8k3s0")
+stretch_mode = 5
+
+[node name="Label" type="Label" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "Action"
+
+[node name="HBoxContainer4" type="HBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="CreateOrUseToken" type="Button" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/VBoxContainer/HBoxContainer4"]
+custom_minimum_size = Vector2(1.45519e-11, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Create / Use token for project"
+
+[node name="TestToken" type="Button" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/VBoxContainer/HBoxContainer4"]
+custom_minimum_size = Vector2(1.45519e-11, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Test token"

@@ -1,0 +1,65 @@
+From 1493ff3c56c790928ae1c0cd23e2ffbee7ff4eef Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Tue, 11 Aug 2026 22:08:29 -0700
+Subject: [PATCH 06/11] Test Cesium tile request priority ordering
+
+---
+ .../test/TestTilesetViewGroup.cpp             | 32 +++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+diff --git a/Cesium3DTilesSelection/test/TestTilesetViewGroup.cpp b/Cesium3DTilesSelection/test/TestTilesetViewGroup.cpp
+index 7117d3d..3c68ce8 100644
+--- a/Cesium3DTilesSelection/test/TestTilesetViewGroup.cpp
++++ b/Cesium3DTilesSelection/test/TestTilesetViewGroup.cpp
+@@ -1,4 +1,5 @@
+ #include <Cesium3DTilesSelection/EllipsoidTilesetLoader.h>
++#include <Cesium3DTilesSelection/TileLoadTask.h>
+ #include <Cesium3DTilesSelection/Tileset.h>
+ #include <CesiumGeospatial/Ellipsoid.h>
+ #include <CesiumNativeTests/SimpleAssetAccessor.h>
+@@ -7,7 +8,9 @@
+ 
+ #include <doctest/doctest.h>
+ 
++#include <algorithm>
+ #include <variant>
++#include <vector>
+ 
+ using namespace Cesium3DTilesSelection;
+ using namespace CesiumAsync;
+@@ -35,6 +38,35 @@ uint32_t getMaxLevel(const std::vector<Tile::ConstPointer>& tiles) {
+ 
+ } // namespace
+ 
++TEST_CASE("TileLoadTask priority ordering") {
++  // TilesetViewGroup sorts these tasks and consumes them from the back. Verify
++  // that urgency wins first, and that lower numeric priorities win within an
++  // urgency group. The tile pointer is deliberately not dereferenced by the
++  // comparator, so nullptr keeps this test focused on ordering semantics.
++  std::vector<TileLoadTask> tasks{
++      {nullptr, TileLoadPriorityGroup::Preload, 0.0},
++      {nullptr, TileLoadPriorityGroup::Normal, 10.0},
++      {nullptr, TileLoadPriorityGroup::Normal, 1.0},
++      {nullptr, TileLoadPriorityGroup::Urgent, 100.0},
++      {nullptr, TileLoadPriorityGroup::Urgent, 2.0}};
++
++  std::sort(tasks.begin(), tasks.end());
++
++  CHECK(tasks.back().group == TileLoadPriorityGroup::Urgent);
++  CHECK(tasks.back().priority == 2.0);
++  tasks.pop_back();
++  CHECK(tasks.back().group == TileLoadPriorityGroup::Urgent);
++  CHECK(tasks.back().priority == 100.0);
++  tasks.pop_back();
++  CHECK(tasks.back().group == TileLoadPriorityGroup::Normal);
++  CHECK(tasks.back().priority == 1.0);
++  tasks.pop_back();
++  CHECK(tasks.back().group == TileLoadPriorityGroup::Normal);
++  CHECK(tasks.back().priority == 10.0);
++  tasks.pop_back();
++  CHECK(tasks.back().group == TileLoadPriorityGroup::Preload);
++}
++
+ TEST_CASE("TilesetViewGroup") {
+   SUBCASE("used with Tileset") {
+     TilesetExternals externals{

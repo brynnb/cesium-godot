@@ -1,0 +1,497 @@
+﻿# SCub for building the Godot Cesium submodule
+import CesiumBuildUtils as cesium_build_utils
+import os
+import sys
+
+Import("env")
+
+cesium_env = env.Clone()
+
+
+def load_cesium_module(p_includePaths: list[str], moduleName: str, loadSources=False, rootDir=""):
+    if (rootDir == ""):
+        rootDir = cesium_build_utils.get_root_dir_native()
+    base_include = "%s/%s/include" % (rootDir, moduleName)
+    generated_include = "%s/%s/generated/include" % (rootDir, moduleName)
+    p_includePaths.append(cesium_build_utils.scons_to_abs_path(base_include))
+    p_includePaths.append(cesium_build_utils.scons_to_abs_path(generated_include))
+
+
+env.Append(CPPDEFINES=[("_HAS_EXCEPTIONS", 1)])
+if os.name == cesium_build_utils.OS_WIN:
+    env.Append(CXXFLAGS=["/EHsc"])
+env.Append(CPPDEFINES=["SPDLOG_NO_EXCEPTIONS",
+                       "LIBASYNC_NO_EXCEPTIONS"])
+
+includePaths = []
+sources = [
+    cesium_build_utils.get_root_dir() + "/register_types.cpp",
+    cesium_build_utils.get_root_dir() + "/Godot/Nodes/CesiumGDTileset.cpp",
+    cesium_build_utils.get_root_dir() + "/Godot/Nodes/CesiumTileDebugVisualizer.cpp",
+	cesium_build_utils.get_root_dir() + "/Godot/Nodes/CesiumTileExcluder.cpp",
+    cesium_build_utils.get_root_dir() + "/Godot/Nodes/CesiumGeoreferencedMesh.cpp",
+    cesium_build_utils.get_root_dir() + "/Godot/Nodes/CesiumGeoreference.cpp",
+    cesium_build_utils.get_root_dir() + "/Models/Cesium3DTile.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/CesiumLoadedTilePrimitive.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Cesium3DTilesetLifecycleEventReceiver.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/CesiumCameraManager.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Renderer/CesiumGltfInstancedComponent.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Renderer/CesiumGltfImageAssetResourceCache.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Renderer/CesiumGltfModelResourceCache.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Renderer/CesiumPointCloudShading.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Materials/CesiumGltfMaterialLoader.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Materials/CesiumLodTransitionController.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumRasterOverlayBinding.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Bounds/CesiumBoundingVolumeSnapshot.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Bounds/CesiumBoundingVolume.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Georeference/CesiumSampleHeightResult.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Georeference/CesiumSampleHeightMostDetailedRequest.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Georeference/CesiumEllipsoid.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Georeference/CesiumGlobeAnchor.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Georeference/CesiumOriginShift.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/Georeference/CesiumFlyTo.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/Georeference/CesiumCartographicPolygon.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Geocoder/CesiumGeocoderService.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Georeference/CesiumCameraPredictor.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Georeference/CesiumGodotCameraProjection.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Diagnostics/CesiumLoadFailure.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Diagnostics/CesiumHardwareCapabilities.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Diagnostics/CesiumTileDebugState.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/TileSelection/CesiumTileExclusionContext.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/TileSelection/CesiumTileExcluderAdapter.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Diagnostics/CesiumLoadFailureQueue.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumGodotMetadataConversions.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumMetadataSnapshot.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumPrimitiveFeaturesSnapshot.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumPrimitiveMetadataSnapshot.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumMetadataProperty.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumPropertyAttributeProperty.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumPropertyAttribute.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumPropertyTextureProperty.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumPropertyTexture.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumPrimitiveMetadata.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumPropertyTable.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumModelMetadata.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumMetadataEnum.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumFeatureIdSet.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumPrimitiveFeatures.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumMetadataPicking.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumMetadataStyle.cpp",
+    cesium_build_utils.get_root_dir() + "/Models/CesiumGDPanel.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumRasterOverlay.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumDebugColorizeTilesRasterOverlay.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumBingMapsRasterOverlay.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumGoogleMapTilesRasterOverlay.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumIonRasterOverlay.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumTileMapServiceRasterOverlay.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumUrlTemplateRasterOverlay.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumWebMapServiceRasterOverlay.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumWebMapTileServiceRasterOverlay.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumPolygonRasterOverlay.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/RasterOverlays/CesiumGeoJsonDocumentRasterOverlay.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/Vector/CesiumGeoJsonDocument.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/Vector/CesiumGeoJsonObject.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/Vector/CesiumVectorStyle.cpp",
+    cesium_build_utils.get_root_dir() + "/Models/CesiumGDConfig.cpp",
+    cesium_build_utils.get_root_dir() + "/Models/CesiumHTTPRequestNode.cpp",
+    cesium_build_utils.get_root_dir() + "/Godot/Nodes/CesiumGDCreditSystem.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Credits/CesiumCredit.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Networking/NetworkAssetAccessor.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Networking/InstrumentedCacheDatabase.cpp",
+    cesium_build_utils.get_root_dir() + "/Implementations/DocumentContainer.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Renderer/GodotPrepareRenderResources.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Async/GodotTaskProcessor.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Renderer/CesiumGDModelLoader.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Renderer/CesiumGDTextureLoader.cpp",
+    cesium_build_utils.get_root_dir() + "/Utils/CesiumDebugUtils.cpp",
+    cesium_build_utils.get_root_dir() + "/Utils/AssetManipulation.cpp",
+    cesium_build_utils.get_root_dir() + "/Utils/CesiumGDAssetBuilder.cpp",
+    cesium_build_utils.get_root_dir() + "/Utils/TokenTroubleShooting.cpp",
+    cesium_build_utils.get_root_dir() + "/third_party/mikktspace/mikktspace.c"
+]
+
+
+load_cesium_module(includePaths, "Cesium3DTiles")
+load_cesium_module(includePaths, "Cesium3DTilesContent")
+load_cesium_module(includePaths, "Cesium3DTilesReader")
+load_cesium_module(includePaths, "Cesium3DTilesSelection")
+load_cesium_module(includePaths, "Cesium3DTilesWriter")
+load_cesium_module(includePaths, "CesiumAsync")
+load_cesium_module(includePaths, "CesiumClientCommon")
+load_cesium_module(includePaths, "CesiumCurl")
+load_cesium_module(includePaths, "CesiumGeometry")
+load_cesium_module(includePaths, "CesiumGeospatial")
+load_cesium_module(includePaths, "CesiumGltf")
+load_cesium_module(includePaths, "CesiumGltfContent")
+load_cesium_module(includePaths, "CesiumGltfReader")
+load_cesium_module(includePaths, "CesiumGltfWriter")
+load_cesium_module(includePaths, "CesiumImage")
+load_cesium_module(includePaths, "CesiumIonClient")
+load_cesium_module(includePaths, "CesiumJsonReader")
+load_cesium_module(includePaths, "CesiumJsonWriter")
+load_cesium_module(includePaths, "CesiumNativeTests")
+load_cesium_module(includePaths, "CesiumQuantizedMeshTerrain")
+load_cesium_module(includePaths, "CesiumRasterOverlays")
+load_cesium_module(includePaths, "CesiumVectorData")
+load_cesium_module(includePaths, "CesiumVectorOverlays")
+load_cesium_module(includePaths, "CesiumUtility")
+load_cesium_module(includePaths, "extern/gsl")
+load_cesium_module(includePaths, "extern/asyncplusplus")
+load_cesium_module(includePaths, "extern/fmt")
+load_cesium_module(includePaths, "extern/spdlog")
+load_cesium_module(includePaths, "extern/glm")
+load_cesium_module(includePaths, "extern/draco")
+load_cesium_module(includePaths, "extern/modp")
+load_cesium_module(includePaths, "extern/rapidjson")
+load_cesium_module(includePaths, "extern/KHR")
+load_cesium_module(includePaths, "extern/webp")
+load_cesium_module(includePaths, "extern/misc")
+load_cesium_module(includePaths, "extern/nonstd")
+load_cesium_module(includePaths, "extern/s2")
+load_cesium_module(includePaths, "curl",
+                   rootDir=cesium_build_utils.get_root_dir() + "/third_party")
+load_cesium_module(includePaths, "litehtml",
+                   rootDir=cesium_build_utils.get_root_dir() + "/third_party")
+
+if (cesium_build_utils.is_extension_target(ARGUMENTS)):
+    cesium_env.add_source_files(sources)
+else:
+    cesium_env.add_source_files(cesium_env.modules_sources, sources)
+
+vcpkgIncludePath = cesium_build_utils.find_ezvcpkg_include_path()
+includePaths.append(vcpkgIncludePath)
+
+env.Append(CPPPATH=includePaths)
+
+vcpkgLibPath = cesium_build_utils.find_ezvcpkg_lib_path()
+env.Prepend(LIBPATH=vcpkgLibPath)
+
+root_dir_native = cesium_build_utils.get_native_build_root()
+current_build_config = cesium_build_utils.get_native_library_config_subdir()
+# Library paths and linking
+libraries = [
+    "CesiumVectorOverlays",
+    "Cesium3DTilesSelection",
+    "CesiumRasterOverlays",
+    "CesiumVectorData",
+    "CesiumIonClient",
+    "CesiumClientCommon",
+    # CesiumVectorData rasterizes vector geometry with Blend2D. Its static
+    # archive deliberately keeps these implementation dependencies private in
+    # CMake, so the standalone GDExtension link must name them explicitly.
+    "blend2d",
+    "asmjit",
+    "Cesium3DTilesContent",
+    "Cesium3DTilesReader",
+    "CesiumGltfReader",
+    "CesiumImage",
+    "CesiumGltf",
+    "CesiumAsync",
+    "CesiumCurl",
+    "CesiumJsonReader",
+    "CesiumJsonWriter",
+    "CesiumUtility",
+    "CesiumGeospatial",
+    "CesiumGeometry",
+    "CesiumGltfContent",
+    "CesiumQuantizedMeshTerrain",
+    "async++",
+    "ktx",
+    # "astcenc-avx2-static",
+    "jpeg",
+    "turbojpeg",
+    "draco",
+    "uriparser",
+    "s2",
+    "glm",
+    "fmt",
+    "spdlog",
+    "tinyxml2",
+    cesium_build_utils.get_curl_lib_name(),
+    "sqlite3",
+    # Needed only for GDExtension as it appears godot already links this
+    "libwebp",
+    "libwebpdecoder",
+    "zstd",
+    "libssl",
+    "meshoptimizer",
+    "spz",
+    # Cesium Native 0.63's current compression stack requires Brotli. Keep
+    # the codec archives before their shared common archive for static links.
+    "brotlienc",
+    "brotlidec",
+    "brotlicommon",
+    "ada",
+    "litehtml", # 35ecd69d05e72b0148204a576db62c2148084193
+    "gumbo"
+]
+
+if (os.name == cesium_build_utils.OS_WIN):
+    libraries.extend([
+        "absl_bad_any_cast_impl",
+        "absl_bad_optional_access",
+        "absl_bad_variant_access",
+        "absl_base",
+        "absl_city",
+        "absl_civil_time",
+        "absl_cord",
+        "absl_cordz_functions",
+        "absl_cordz_handle",
+        "absl_cordz_info",
+        "absl_cordz_sample_token",
+        "absl_cord_internal",
+        "absl_crc32c",
+        "absl_crc_cord_state",
+        "absl_crc_cpu_detect",
+        "absl_crc_internal",
+        "absl_debugging_internal",
+        "absl_demangle_internal",
+        "absl_demangle_rust",
+        "absl_decode_rust_punycode",
+        "absl_utf8_for_code_point",
+        "absl_die_if_null",
+        "absl_examine_stack",
+        "absl_exponential_biased",
+        "absl_failure_signal_handler",
+        "absl_flags_commandlineflag",
+        "absl_flags_commandlineflag_internal",
+        "absl_flags_config",
+        "absl_flags_internal",
+        "absl_flags_marshalling",
+        "absl_flags_parse",
+        "absl_flags_private_handle_accessor",
+        "absl_flags_program_name",
+        "absl_flags_reflection",
+        "absl_flags_usage",
+        "absl_flags_usage_internal",
+        "absl_graphcycles_internal",
+        "absl_hash",
+        "absl_hashtablez_sampler",
+        "absl_int128",
+        "absl_kernel_timeout_internal",
+        "absl_leak_check",
+        "absl_log_entry",
+        "absl_log_flags",
+        "absl_log_globals",
+        "absl_log_initialize",
+        "absl_log_internal_check_op",
+        "absl_log_internal_conditions",
+        "absl_log_internal_fnmatch",
+        "absl_log_internal_format",
+        "absl_log_internal_globals",
+        "absl_log_internal_log_sink_set",
+        "absl_log_internal_message",
+        "absl_log_internal_nullguard",
+        "absl_log_internal_proto",
+        "absl_log_severity",
+        "absl_log_internal_structured_proto",
+        "absl_log_sink",
+        "absl_malloc_internal",
+        "absl_periodic_sampler",
+        "absl_random_distributions",
+        "absl_random_internal_distribution_test_util",
+        "absl_random_internal_platform",
+        "absl_random_internal_pool_urbg",
+        "absl_random_internal_randen",
+        "absl_random_internal_randen_hwaes",
+        "absl_random_internal_randen_hwaes_impl",
+        "absl_random_internal_randen_slow",
+        "absl_random_internal_seed_material",
+        "absl_random_seed_gen_exception",
+        "absl_random_seed_sequences",
+        "absl_raw_hash_set",
+        "absl_raw_logging_internal",
+        "absl_scoped_set_env",
+        "absl_spinlock_wait",
+        "absl_stacktrace",
+        "absl_borrowed_fixup_buffer",
+        "absl_status",
+        "absl_statusor",
+        "absl_strerror",
+        "absl_strings",
+        "absl_strings_internal",
+        "absl_string_view",
+        "absl_str_format_internal",
+        "absl_symbolize",
+        "absl_synchronization",
+        "absl_throw_delegate",
+        "absl_time",
+        "absl_time_zone",
+        "absl_tracing_internal",
+        "absl_vlog_config_internal",
+        "zs",
+        "zlibstatic-ng",
+        "libmodpbase64"
+    ])
+elif sys.platform == cesium_build_utils.PLATFORM_MACOS:
+    # Remove litehtml and gumbo from the libraries list - we'll use -force_load instead
+    libraries.remove("litehtml")
+    libraries.remove("gumbo")
+    libraries.extend([
+        "crypto",
+        "z",
+        "z-ng",
+        "liblibmodpbase64",
+        # Abseil libraries (required by s2 geometry)
+        "absl_bad_any_cast_impl",
+        "absl_bad_optional_access",
+        "absl_bad_variant_access",
+        "absl_base",
+        "absl_city",
+        "absl_civil_time",
+        "absl_cord",
+        "absl_cord_internal",
+        "absl_cordz_functions",
+        "absl_cordz_handle",
+        "absl_cordz_info",
+        "absl_cordz_sample_token",
+        "absl_crc32c",
+        "absl_crc_cord_state",
+        "absl_crc_cpu_detect",
+        "absl_crc_internal",
+        "absl_debugging_internal",
+        "absl_decode_rust_punycode",
+        "absl_demangle_internal",
+        "absl_demangle_rust",
+        "absl_die_if_null",
+        "absl_examine_stack",
+        "absl_exponential_biased",
+        "absl_failure_signal_handler",
+        "absl_flags_commandlineflag",
+        "absl_flags_commandlineflag_internal",
+        "absl_flags_config",
+        "absl_flags_internal",
+        "absl_flags_marshalling",
+        "absl_flags_parse",
+        "absl_flags_private_handle_accessor",
+        "absl_flags_program_name",
+        "absl_flags_reflection",
+        "absl_flags_usage",
+        "absl_flags_usage_internal",
+        "absl_graphcycles_internal",
+        "absl_hash",
+        "absl_hashtablez_sampler",
+        "absl_int128",
+        "absl_kernel_timeout_internal",
+        "absl_leak_check",
+        "absl_log_entry",
+        "absl_log_flags",
+        "absl_log_globals",
+        "absl_log_initialize",
+        "absl_log_internal_check_op",
+        "absl_log_internal_conditions",
+        "absl_log_internal_fnmatch",
+        "absl_log_internal_format",
+        "absl_log_internal_globals",
+        "absl_log_internal_log_sink_set",
+        "absl_log_internal_message",
+        "absl_log_internal_nullguard",
+        "absl_log_internal_proto",
+        "absl_log_internal_structured_proto",
+        "absl_log_severity",
+        "absl_log_sink",
+        "absl_malloc_internal",
+        "absl_periodic_sampler",
+        "absl_poison",
+        "absl_random_distributions",
+        "absl_random_internal_distribution_test_util",
+        "absl_random_internal_platform",
+        "absl_random_internal_pool_urbg",
+        "absl_random_internal_randen",
+        "absl_random_internal_randen_hwaes",
+        "absl_random_internal_randen_hwaes_impl",
+        "absl_random_internal_randen_slow",
+        "absl_random_internal_seed_material",
+        "absl_random_seed_gen_exception",
+        "absl_random_seed_sequences",
+        "absl_raw_hash_set",
+        "absl_raw_logging_internal",
+        "absl_scoped_set_env",
+        "absl_spinlock_wait",
+        "absl_stacktrace",
+        "absl_borrowed_fixup_buffer",
+        "absl_status",
+        "absl_statusor",
+        "absl_str_format_internal",
+        "absl_strerror",
+        "absl_string_view",
+        "absl_strings",
+        "absl_strings_internal",
+        "absl_symbolize",
+        "absl_synchronization",
+        "absl_throw_delegate",
+        "absl_time",
+        "absl_time_zone",
+        "absl_tracing_internal",
+        "absl_utf8_for_code_point",
+        "absl_vlog_config_internal"
+    ])
+    # Add macOS-specific library path for litehtml
+    litehtml_macos_path = cesium_build_utils.get_root_dir() + "/third_party/litehtml/macos"
+    litehtml_macos_abs = cesium_build_utils.scons_to_abs_path(litehtml_macos_path)
+    env.Append(LIBPATH=[litehtml_macos_path])
+    # Link against macOS frameworks and force-load litehtml to resolve internal dependencies
+    env.Append(LINKFLAGS=[
+        "-framework", "CoreFoundation",
+        "-framework", "Security",
+        "-framework", "SystemConfiguration",
+        # Force load all symbols from litehtml - needed for internal archive dependencies
+        "-force_load", litehtml_macos_abs + "/liblitehtml.a",
+        "-force_load", litehtml_macos_abs + "/libgumbo.a"
+    ])
+elif (os.name == cesium_build_utils.OS_LINUX and sys.platform != cesium_build_utils.PLATFORM_MACOS):
+    libraries.extend([
+        "crypto",
+        "libz-ng",
+        # Cesium Native dependencies still reference the zlib-compatible names.
+        # zlib-ng is built with its zng_ prefix here, so also link the system
+        # compatibility library instead of leaving unresolved symbols in the
+        # GDExtension shared object.
+        "z",
+        "liblibmodpbase64"
+    ])
+    env.Append(LIBPATH=["/usr/lib/x86_64-linux-gnu"])
+    env.Append(CPPPATH=["/usr/include/x86_64-linux-gnu"])
+
+# Build common library paths
+common_libpaths = [
+    f"{root_dir_native}/CesiumGltfReader/{current_build_config}",
+    f"{root_dir_native}/CesiumImage/{current_build_config}",
+    f"{root_dir_native}/CesiumIonClient/{current_build_config}",
+    f"{root_dir_native}/CesiumClientCommon/{current_build_config}",
+    f"{root_dir_native}/CesiumAsync/{current_build_config}",
+    f"{root_dir_native}/CesiumCurl/{current_build_config}",
+    f"{root_dir_native}/CesiumJsonReader/{current_build_config}",
+    f"{root_dir_native}/CesiumJsonWriter/{current_build_config}",
+    f"{root_dir_native}/CesiumGltf/{current_build_config}",
+    f"{root_dir_native}/CesiumUtility/{current_build_config}",
+    f"{root_dir_native}/CesiumGeospatial/{current_build_config}",
+    f"{root_dir_native}/Cesium3DTilesSelection/{current_build_config}",
+    f"{root_dir_native}/CesiumRasterOverlays/{current_build_config}",
+    f"{root_dir_native}/CesiumVectorData/{current_build_config}",
+    f"{root_dir_native}/CesiumVectorOverlays/{current_build_config}",
+    f"{root_dir_native}/CesiumGeometry/{current_build_config}",
+    f"{root_dir_native}/Cesium3DTilesReader/{current_build_config}",
+    f"{root_dir_native}/CesiumGltfContent/{current_build_config}",
+    f"{root_dir_native}/CesiumQuantizedMeshTerrain/{current_build_config}",
+    f"{root_dir_native}/Cesium3DTilesContent/{current_build_config}",
+    cesium_build_utils.get_native_build_root() + "/libs/gsl",
+    cesium_build_utils.get_native_build_root() + "/libs/absl",
+    cesium_build_utils.get_native_build_root() + "/libs",
+    cesium_build_utils.find_ezvcpkg_path(
+    ) + "/installed/%s/lib" % (cesium_build_utils.determine_triplet())
+]
+
+# Add litehtml path (macOS uses its own path added earlier, others use base path)
+if sys.platform != cesium_build_utils.PLATFORM_MACOS:
+    common_libpaths.append(cesium_build_utils.get_root_dir() + "/third_party/litehtml")
+
+env.Append(
+    LIBS=libraries,
+    LIBPATH=common_libpaths
+)
+
+# This was a nightmare, so I abstracted it into a function, the function itself is also a nightmare
+# Note: os.name == 'posix' on both Linux and macOS, so we must check PLATFORM_MACOS first
+if (os.name == cesium_build_utils.OS_LINUX and sys.platform != cesium_build_utils.PLATFORM_MACOS):
+    cesium_build_utils.link_abseil_libs(env)

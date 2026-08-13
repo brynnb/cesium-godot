@@ -1,0 +1,15 @@
+{
+  "asset": {"version": "1.1"},
+  "geometricError": 0,
+  "root": {
+    "boundingVolume": {"sphere": [0, 0, 0, 10]},
+    "geometricError": 0,
+    "transform": [
+      0, 2, 0, 0,
+      -3, 0, 0, 0,
+      0, 0, 4, 0,
+      0, 200, 0, 1
+    ],
+    "content": {"uri": "../lifecycle/triangle.gltf"}
+  }
+}
