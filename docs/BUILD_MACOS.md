@@ -11,7 +11,7 @@ the remaining locked Python build tools with:
 
 ```bash
 brew install pkg-config
-python3 -m pip install scons==4.8.1 cmake==3.31.6 ninja==1.12.1
+python3 -m pip install scons==4.8.1 cmake==3.31.6 ninja==1.13.0
 ```
 
 Cesium's locked vcpkg baseline builds its own OpenSSL. No system LibreSSL

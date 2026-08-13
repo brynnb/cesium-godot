@@ -38,7 +38,7 @@ editor workflow, which should be considered experimental.
 ## Building
 
 Install a C++20 compiler, Git, Python 3.11, SCons 4.8.1, CMake 3.31.6, and
-Ninja 1.12.1. On Linux, install the libcurl OpenSSL development package as
+Ninja 1.13.0. On Linux, install the libcurl OpenSSL development package as
 well. Then run:
 
 ```bash
