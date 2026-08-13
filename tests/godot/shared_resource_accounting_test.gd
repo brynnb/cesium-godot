@@ -69,7 +69,9 @@ func _run() -> void:
 		int(stats.get("shared_texture_live_count", -1)) != 1 or
 		int(stats.get("shared_texture_live_bytes", -1)) != 16 or
 		int(stats.get("shared_texture_maximum_live_count", -1)) != 1 or
-		int(stats.get("shared_texture_maximum_live_bytes", -1)) != 16
+		int(stats.get("shared_texture_maximum_live_bytes", -1)) != 16 or
+		int(stats.get("released_cpu_texture_count", -1)) != 1 or
+		int(stats.get("released_cpu_texture_bytes", -1)) != 16
 	):
 		_fail("Shared texture diagnostics were not de-duplicated: %s" % [stats])
 		return
@@ -92,8 +94,9 @@ func _run() -> void:
 	receiver.textures.clear()
 	receiver.shaders.clear()
 
-	# Make both now-hidden leaves immediately eligible for eviction. Resource
-	# leases must release once per unique image after the final tile unloads.
+	# Make both now-hidden leaves immediately eligible for eviction. The Godot
+	# texture remains attached to Native's small inactive-image depot so a tile
+	# that returns can reuse it even though its CPU upload pixels are gone.
 	tileset.maximum_cached_bytes = 0
 	camera.position = Vector3(1_000_000.0, 1_000_000.0, 1_000_000.0)
 	camera.look_at(Vector3(2_000_000.0, 1_000_000.0, 1_000_000.0), Vector3.UP)
@@ -101,17 +104,15 @@ func _run() -> void:
 		tileset.update_tileset(camera.global_transform)
 		await process_frame
 		stats = tileset.get_streaming_statistics()
-		if (
-			receiver.unload_count >= 2 and
-			int(stats.get("shared_texture_live_count", -1)) == 0
-		):
+		if receiver.unload_count >= 2:
 			break
 	if (
 		receiver.unload_count != 2 or
-		int(stats.get("shared_texture_live_count", -1)) != 0 or
-		int(stats.get("shared_texture_live_bytes", -1)) != 0
+		int(stats.get("shared_texture_live_count", -1)) != 1 or
+		int(stats.get("shared_texture_live_bytes", -1)) != 16 or
+		int(stats.get("released_cpu_texture_bytes", -1)) != 16
 	):
-		_fail("Shared texture survived its final tile lease: %s" % [stats])
+		_fail("Inactive Native image did not retain only its uploaded texture: %s" % [stats])
 		return
 
 	# Independently decoded embedded and external images with identical pixels
@@ -150,16 +151,20 @@ func _run() -> void:
 		_fail("Two content-identical image tiles did not realize")
 		return
 	if receiver.textures[0] != receiver.textures[1]:
-		_fail("Content-identical ImageAssets created two Godot textures")
+		_fail("Content-identical ImageAssets created two Godot textures: %s" % [
+			tileset.get_streaming_statistics()
+		])
 		return
 	stats = tileset.get_streaming_statistics()
 	if (
-		int(stats.get("shared_texture_cache_misses", -1)) != 1 or
-		int(stats.get("shared_texture_cache_hits", -1)) != 1 or
-		int(stats.get("shared_texture_live_count", -1)) != 1 or
-		int(stats.get("shared_texture_live_bytes", -1)) != 16
+		int(stats.get("shared_texture_cache_misses", -1)) != 0 or
+		int(stats.get("shared_texture_cache_hits", -1)) != 2 or
+		int(stats.get("shared_texture_live_count", -1)) != 0 or
+		int(stats.get("shared_texture_live_bytes", -1)) != 0 or
+		int(stats.get("released_cpu_texture_count", -1)) != 1 or
+		int(stats.get("released_cpu_texture_bytes", -1)) != 16
 	):
-		_fail("Content-identical texture sharing was not accounted once: %s" % [stats])
+		_fail("Native image-depot texture reuse was not accounted: %s" % [stats])
 		return
 
 	# The same resolved model URL may appear under different raw tile IDs and

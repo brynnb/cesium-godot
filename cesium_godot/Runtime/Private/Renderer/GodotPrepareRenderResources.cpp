@@ -939,7 +939,7 @@ void* GodotPrepareRenderResources::prepareRasterInLoadThread(CesiumImage::ImageA
 
 void* GodotPrepareRenderResources::prepareRasterInMainThread(CesiumRasterOverlays::RasterOverlayTile& rasterTile, void* pLoadThreadResult)
 {
-	const CesiumImage::ImageAsset& imageCesium = *rasterTile.getImage().get();
+	CesiumImage::ImageAsset& imageCesium = *rasterTile.getImage().get();
 	Ref<ImageTexture> godotTexture =
 		CesiumGDTextureLoader::load_image_texture(imageCesium, false);
 	if (godotTexture.is_null()) {
@@ -953,6 +953,18 @@ void* GodotPrepareRenderResources::prepareRasterInMainThread(CesiumRasterOverlay
 			this->m_failureQueue->push(std::move(failure));
 		}
 		return nullptr;
+	}
+	const uint64_t releasedBytes =
+		CesiumGDTextureLoader::release_pixel_data(imageCesium);
+	if (releasedBytes > 0 && this->m_statistics != nullptr) {
+		this->m_statistics->releasedCpuTextureCount.fetch_add(
+			1,
+			std::memory_order_relaxed
+		);
+		this->m_statistics->releasedCpuTextureBytes.fetch_add(
+			releasedBytes,
+			std::memory_order_relaxed
+		);
 	}
 	godotTexture->reference();
 	return static_cast<void*>(godotTexture.ptr());

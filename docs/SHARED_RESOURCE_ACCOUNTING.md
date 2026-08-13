@@ -22,21 +22,25 @@ Godot's main-thread `Resource` ownership.
 ## Ownership model
 
 Each `Cesium3DTileset` owns one `CesiumGltfImageAssetResourceCache`. The cache
-is consulted only while a prepared model is realized on the Godot main thread.
+is consulted while a prepared model is realized on the Godot main thread, and
+the resulting renderer resource is attached to the Native `ImageAsset` in the
+same way that Cesium for Unreal attaches its renderer resource.
 
 - The key is the exact shared Cesium Native `ImageAsset` identity.
 - The first active tile uploads one Godot `ImageTexture` and receives a shared
   lease.
 - Later active tiles using that image receive the same `ImageTexture` object
   and another lease.
-- A tile retains one lease per unique material image until the tile's realized
-  renderer resources are destroyed.
-- The cache itself keeps only a weak entry. It is not an unbounded second LRU
-  and cannot keep an otherwise-unused texture alive.
-- Releasing the final tile lease releases the cache's `ImageTexture` reference
-  and retained Native image on the Godot main thread. An application that
-  deliberately retains the texture can extend its Godot lifetime outside the
-  tile cache, so the live diagnostics specifically measure tile-owned leases.
+- Once upload succeeds, the original CPU pixel vector and mip-position vector
+  are deallocated. `ImageAsset::sizeBytes` preserves Native cache accounting.
+- Structural-metadata property textures and feature-ID textures remain
+  CPU-readable because runtime sampling still needs their pixels.
+- The uploaded resource follows Native's image lifetime, including its bounded
+  16 MiB inactive-image depot, so returning content can reuse the texture even
+  after its tile node was evicted.
+- Process-global Native images may outlive the scene-level extension. Godot
+  texture references are explicitly dropped during extension shutdown before
+  `RenderingServer` is destroyed.
 
 The cache does not create Godot objects on a worker thread. Worker preparation
 only carries the cache owner forward to the later main-thread realization
@@ -122,6 +126,8 @@ The Godot snapshot adds these fields:
 - `shared_texture_live_bytes`
 - `shared_texture_maximum_live_count`
 - `shared_texture_maximum_live_bytes`
+- `released_cpu_texture_count`
+- `released_cpu_texture_bytes`
 - `shared_shader_cache_hits`
 - `shared_shader_cache_misses`
 - `shared_shader_cache_entries`
@@ -136,10 +142,12 @@ The Godot snapshot adds these fields:
 - `shared_model_maximum_live_texture_bytes`
 
 The byte values use the stable Cesium Native `ImageAsset::getSizeBytes()` cache
-estimate. They describe actively tile-leased shared material textures, not driver
-allocation measured through a rendering fence. Hit and miss counters are
-cumulative for the current tileset generation; live values return to zero
-after the final tile lease, and maximum values are high-water marks.
+estimate. They describe unique shared material textures first created by the
+reporting tileset, not driver allocation measured through a rendering fence.
+An already-uploaded texture reused from Native's process-global image depot is
+a hit but is owned and counted by its original resource. The released-CPU
+fields are cumulative and report actual source-vector bytes deallocated after
+successful uploads or reuse.
 Shader entries remain live for the tileset generation by design. Hits and
 misses are cumulative, `shared_shader_cache_entries` is the current exact
 variant count, and `shared_shader_cache_maximum_entries` is its high-water
@@ -160,8 +168,10 @@ tiles that reference the same external image. It proves that:
 - one shader miss and one hit produce one live generated variant;
 - Native reports two distinct 66-byte geometry buffers plus one 16-byte image,
   rather than charging the image twice; and
-- forced eviction unloads both tiles and releases the live shared count and
-  bytes exactly when the final lease disappears.
+- forced tile eviction leaves only Native's bounded inactive-image texture
+  available for immediate reuse, without retaining its CPU upload pixels; and
+- a later tileset reuses that texture while releasing the duplicate decoded
+  pixel buffer from its independently loaded image.
 
 The corresponding Cesium Native test loads one hundred glTF models sharing two
 images and checks the exact de-duplicated cache total and zero balance after

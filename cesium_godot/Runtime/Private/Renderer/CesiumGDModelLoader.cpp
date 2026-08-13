@@ -1097,6 +1097,9 @@ CesiumGDPreparedModel* CesiumGDModelLoader::prepare_model(
 	std::unique_ptr<CesiumGDPreparedModel> prepared =
 		std::make_unique<CesiumGDPreparedModel>();
 	prepared->metadataSnapshot = create_cesium_metadata_snapshot(model);
+	if (prepared->metadataSnapshot != nullptr) {
+		prepared->cpuImageAssets = prepared->metadataSnapshot->cpuImageAssets;
+	}
 	for (const CesiumGltf::Image& image : model.images) {
 		if (image.pAsset != nullptr) {
 			prepared->imageContentFingerprints.try_emplace(
@@ -1307,6 +1310,18 @@ CesiumGDPreparedModel* CesiumGDModelLoader::prepare_model(
 					featureVertexPositions,
 					featureTriangleIndices
 				);
+			if (featuresSnapshot != nullptr) {
+				for (const auto& featureIdSet : featuresSnapshot->featureIdSets) {
+					if (
+						featureIdSet != nullptr && featureIdSet->textureView != nullptr &&
+						featureIdSet->textureView->getImage() != nullptr
+					) {
+						prepared->cpuImageAssets.emplace(
+							featureIdSet->textureView->getImage()
+						);
+					}
+				}
+			}
 			std::shared_ptr<CesiumPrimitiveMetadataSnapshot> metadataSnapshot =
 				create_cesium_primitive_metadata_snapshot(
 					model,
@@ -1559,6 +1574,7 @@ bool CesiumGDModelLoader::realize_prepared_model_incrementally(
 			model,
 			prepared.sharedImageCache,
 			&prepared.imageContentFingerprints,
+			&prepared.cpuImageAssets,
 			&prepared.sharedImageResources,
 			prepared.enableLodTransitionDither,
 			prepared.enableTranslucencyDepthPrepass

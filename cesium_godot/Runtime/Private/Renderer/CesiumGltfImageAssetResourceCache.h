@@ -60,8 +60,15 @@ struct CesiumGltfImageContentFingerprintHash {
 };
 
 struct CesiumGltfSharedImageResource {
-	CesiumUtility::IntrusivePointer<CesiumImage::ImageAsset> imageAsset;
 	Ref<ImageTexture> texture;
+	CesiumGltfImageContentFingerprint contentFingerprint;
+	int32_t width = 0;
+	int32_t height = 0;
+	int32_t channels = 0;
+	int32_t bytesPerChannel = 0;
+	CesiumImage::GpuCompressedPixelFormat compressedPixelFormat =
+		CesiumImage::GpuCompressedPixelFormat::NONE;
+	std::vector<CesiumImage::ImageAssetMipPosition> mipPositions;
 	uint64_t sizeBytes = 0;
 	std::shared_ptr<CesiumTilesetRuntimeStatistics> statistics;
 
@@ -78,11 +85,15 @@ public:
 	std::shared_ptr<CesiumGltfSharedImageResource> acquire(
 		const CesiumUtility::IntrusivePointer<CesiumImage::ImageAsset>& imageAsset,
 		const CesiumGltfImageContentFingerprint& contentFingerprint,
+		bool preserveCpuPixelData,
 		Error* error
 	);
 	static CesiumGltfImageContentFingerprint fingerprint(
 		const CesiumImage::ImageAsset& imageAsset
 	);
+	// Drop Godot renderer references before RenderingServer shutdown. Native's
+	// process-global inactive image depot may outlive the GDExtension scene level.
+	static void release_all_renderer_resources();
 	Ref<Shader> acquire_shader(const String& source);
 	void release_generation_resources();
 
@@ -90,10 +101,6 @@ private:
 	void prune_expired();
 
 	std::shared_ptr<CesiumTilesetRuntimeStatistics> m_statistics;
-	std::unordered_map<
-		const CesiumImage::ImageAsset*,
-		std::weak_ptr<CesiumGltfSharedImageResource>
-	> m_resources;
 	std::unordered_map<
 		CesiumGltfImageContentFingerprint,
 		std::vector<std::weak_ptr<CesiumGltfSharedImageResource>>,

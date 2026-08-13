@@ -18,12 +18,14 @@
 
 #include <CesiumGltf/Model.h>
 #include <CesiumGltf/PropertyAttribute.h>
+#include <CesiumImage/ImageAsset.h>
 #include <CesiumUtility/JsonValue.h>
 
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 enum class CesiumMetadataPropertyStatus : int32_t {
@@ -151,6 +153,10 @@ struct CesiumModelMetadataSnapshot {
 	std::vector<std::shared_ptr<CesiumPropertyTextureSnapshot>> propertyTextures;
 	uint64_t memoryBytes = 0;
 	uint64_t textureBytes = 0;
+	// Property-texture sampling happens after renderer realization, so these
+	// images must retain their CPU pixels. Ordinary material images can release
+	// theirs as soon as Godot has uploaded the ImageTexture.
+	std::unordered_set<const CesiumImage::ImageAsset*> cpuImageAssets;
 };
 
 std::shared_ptr<CesiumModelMetadataSnapshot>

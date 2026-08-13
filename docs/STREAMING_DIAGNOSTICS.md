@@ -154,7 +154,9 @@ UI, logging, automated routes, and benchmark capture. It contains:
 - shared Godot material-texture ownership under `shared_texture_cache_hits`,
   `shared_texture_cache_misses`, `shared_texture_live_count`,
   `shared_texture_live_bytes`, `shared_texture_maximum_live_count`, and
-  `shared_texture_maximum_live_bytes`;
+  `shared_texture_maximum_live_bytes`, plus cumulative
+  `released_cpu_texture_count` and `released_cpu_texture_bytes` proving that
+  post-upload source buffers were actually deallocated;
 - exact generated shader reuse under `shared_shader_cache_hits`,
   `shared_shader_cache_misses`, `shared_shader_cache_entries`, and
   `shared_shader_cache_maximum_entries`; and

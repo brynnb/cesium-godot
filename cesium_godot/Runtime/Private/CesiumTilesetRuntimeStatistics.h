@@ -46,6 +46,8 @@ struct CesiumTilesetRuntimeStatistics {
 	std::atomic<uint64_t> liveSharedTextureBytes{0};
 	std::atomic<uint64_t> maximumLiveSharedTextureCount{0};
 	std::atomic<uint64_t> maximumLiveSharedTextureBytes{0};
+	std::atomic<uint64_t> releasedCpuTextureCount{0};
+	std::atomic<uint64_t> releasedCpuTextureBytes{0};
 	std::atomic<uint64_t> sharedShaderCacheHitCount{0};
 	std::atomic<uint64_t> sharedShaderCacheMissCount{0};
 	std::atomic<uint64_t> liveSharedShaderCount{0};

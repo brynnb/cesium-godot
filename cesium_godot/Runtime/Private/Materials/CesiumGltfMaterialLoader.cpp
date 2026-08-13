@@ -71,6 +71,7 @@ CesiumGltfMaterialLoader::CesiumGltfMaterialLoader(
 		const CesiumImage::ImageAsset*,
 		CesiumGltfImageContentFingerprint
 	>* imageContentFingerprints,
+	const std::unordered_set<const CesiumImage::ImageAsset*>* cpuImageAssets,
 	std::vector<std::shared_ptr<CesiumGltfSharedImageResource>>*
 		sharedImageResources,
 	bool enableLodTransitionDither,
@@ -78,6 +79,7 @@ CesiumGltfMaterialLoader::CesiumGltfMaterialLoader(
 ) : m_model(model),
 	m_sharedImageCache(sharedImageCache),
 	m_imageContentFingerprints(imageContentFingerprints),
+	m_cpuImageAssets(cpuImageAssets),
 	m_sharedImageResources(sharedImageResources),
 	m_enableLodTransitionDither(enableLodTransitionDither),
 	m_enableTranslucencyDepthPrepass(enableTranslucencyDepthPrepass) {}
@@ -206,6 +208,8 @@ Ref<ImageTexture> CesiumGltfMaterialLoader::load_texture(
 			this->m_sharedImageCache->acquire(
 				image.pAsset,
 				fingerprint,
+				this->m_cpuImageAssets != nullptr &&
+					this->m_cpuImageAssets->contains(imageAsset),
 				error
 			);
 		if (resource != nullptr) {

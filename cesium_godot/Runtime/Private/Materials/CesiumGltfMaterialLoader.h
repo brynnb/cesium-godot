@@ -21,6 +21,7 @@ using namespace godot;
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 struct CesiumGltfPrimitiveMaterialOptions {
 	bool pointPrimitive = false;
@@ -47,6 +48,8 @@ public:
 			const CesiumImage::ImageAsset*,
 			CesiumGltfImageContentFingerprint
 		>* imageContentFingerprints,
+		const std::unordered_set<const CesiumImage::ImageAsset*>*
+			cpuImageAssets,
 		std::vector<std::shared_ptr<CesiumGltfSharedImageResource>>*
 			sharedImageResources,
 		bool enableLodTransitionDither,
@@ -125,6 +128,8 @@ private:
 		const CesiumImage::ImageAsset*,
 		CesiumGltfImageContentFingerprint
 	>* m_imageContentFingerprints = nullptr;
+	const std::unordered_set<const CesiumImage::ImageAsset*>*
+		m_cpuImageAssets = nullptr;
 	std::vector<std::shared_ptr<CesiumGltfSharedImageResource>>*
 		m_sharedImageResources = nullptr;
 	bool m_enableLodTransitionDither = false;
