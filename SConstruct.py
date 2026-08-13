@@ -41,6 +41,15 @@ try:
     )
 finally:
     ARGUMENTS.update(cesium_only_arguments)
+
+# Godot 4.6's generated bindings contain enough object files to exceed the
+# POSIX process argument limit when GNU ar is invoked directly. SCons' TEMPFILE
+# command generator writes the archive arguments to a response file only when
+# the expanded command needs it; GNU ar accepts that response-file syntax.
+if env["platform"] == "linux":
+    env["ARCOM_RESPONSE"] = env["ARCOM"]
+    env["ARCOM"] = "${TEMPFILE(ARCOM_RESPONSE)}"
+
 cesium_build_utils.generate_precision_symbols(ARGUMENTS, env)
 env.Append(CXXFLAGS=cesium_build_utils.get_compile_flags())
 env.Append(LINKFLAGS=cesium_build_utils.get_linker_flags())
