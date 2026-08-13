@@ -1,0 +1,2 @@
+# Cesium Native reads these fixtures directly. Godot's scene importer must not
+# convert the source glTF before the tests run.

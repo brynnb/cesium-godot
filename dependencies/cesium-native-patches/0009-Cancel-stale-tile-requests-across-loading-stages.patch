@@ -1,0 +1,1271 @@
+From d34b82da3b87e4e187aac70485459613ce668729 Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Tue, 11 Aug 2026 22:25:16 -0700
+Subject: [PATCH 09/11] Cancel stale tile requests across loading stages
+
+---
+ .../Cesium3DTilesSelection/GltfModifier.h     |   1 +
+ .../TileLoadRequester.h                       |  12 ++
+ .../include/Cesium3DTilesSelection/Tileset.h  |   6 +
+ .../Cesium3DTilesSelection/TilesetOptions.h   |  10 +
+ .../Cesium3DTilesSelection/TilesetViewGroup.h |   5 +
+ Cesium3DTilesSelection/src/GltfModifier.cpp   |   7 +
+ Cesium3DTilesSelection/src/Tileset.cpp        |   5 +
+ .../src/TilesetContentManager.cpp             | 178 ++++++++++++++++--
+ .../src/TilesetContentManager.h               |  10 +
+ .../src/TilesetHeightQuery.cpp                |  14 ++
+ .../src/TilesetHeightQuery.h                  |   9 +
+ .../src/TilesetViewGroup.cpp                  |  24 +++
+ .../CesiumAsync/CachingAssetAccessor.h        |  14 ++
+ .../include/CesiumAsync/GunzipAssetAccessor.h |  14 ++
+ .../include/CesiumAsync/IAssetAccessor.h      |  54 ++++++
+ CesiumAsync/src/CachingAssetAccessor.cpp      |  54 +++++-
+ CesiumAsync/src/GunzipAssetAccessor.cpp       |  51 ++++-
+ .../include/CesiumCurl/CurlAssetAccessor.h    |  18 ++
+ CesiumCurl/src/CurlAssetAccessor.cpp          |  61 ++++++
+ CesiumCurl/test/TestCurlAssetAccessor.cpp     |  59 +++++-
+ 20 files changed, 586 insertions(+), 20 deletions(-)
+
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/GltfModifier.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/GltfModifier.h
+index c9c54dd..9c9ecf1 100644
+--- a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/GltfModifier.h
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/GltfModifier.h
+@@ -256,6 +256,7 @@ private:
+   const Tile* getNextTileToLoadInWorkerThread() override;
+   bool hasMoreTilesToLoadInMainThread() const override;
+   const Tile* getNextTileToLoadInMainThread() override;
++  bool isTileLoadStillNeeded(const Tile& tile) const override;
+ 
+   std::optional<int64_t> _currentVersion;
+ 
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TileLoadRequester.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TileLoadRequester.h
+index 29c6d8c..ab5aec8 100644
+--- a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TileLoadRequester.h
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TileLoadRequester.h
+@@ -94,6 +94,18 @@ public:
+    */
+   virtual const Tile* getNextTileToLoadInMainThread() = 0;
+ 
++  /**
++   * @brief Determines whether an in-flight load is still useful to this
++   * requester.
++   *
++   * The default returns true so existing custom requesters remain compatible
++   * and conservatively prevent cancellation. Requesters with frame-local
++   * knowledge should override this method.
++   */
++  virtual bool isTileLoadStillNeeded(const Tile& /*tile*/) const {
++    return true;
++  }
++
+   /**
+    * @brief Unregister this requester with the {link Tileset} with which it is
+    * currently registered. Once unregistered, it will not influence tile loads
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/Tileset.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/Tileset.h
+index c0b275d..4301509 100644
+--- a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/Tileset.h
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/Tileset.h
+@@ -268,6 +268,12 @@ public:
+    */
+   int32_t getNumberOfTilesLoaded() const;
+ 
++  /**
++   * @brief Gets the cumulative number of tile loads canceled because no
++   * registered requester needed them anymore.
++   */
++  uint64_t getNumberOfCanceledTileLoads() const noexcept;
++
+   /**
+    * @brief Gets the percentage of tiles that had been loaded for the default
+    * view group as of the last time it was updated.
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetOptions.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetOptions.h
+index cd19993..5d78936 100644
+--- a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetOptions.h
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetOptions.h
+@@ -63,6 +63,16 @@ struct CESIUM3DTILESSELECTION_API TilesetOptions {
+    */
+   uint32_t maximumSimultaneousTileLoads = 20;
+ 
++  /**
++   * @brief Whether in-flight tile work should be canceled when no registered
++   * view or height request needs the tile or one of its descendants anymore.
++   *
++   * Cancellation is cooperative. Built-in HTTP, cache, decompression, glTF,
++   * and renderer-preparation stages honor it. Third-party asset accessors may
++   * ignore the transport signal, but later processing is still discarded.
++   */
++  bool enableStaleRequestCancellation = true;
++
+   /**
+    * @brief Indicates whether the ancestors of rendered tiles should be
+    * preloaded. Setting this to true optimizes the zoom-out experience and
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetViewGroup.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetViewGroup.h
+index f0f4b19..de5a13c 100644
+--- a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetViewGroup.h
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetViewGroup.h
+@@ -117,6 +117,7 @@ public:
+   private:
+     size_t mainThread;
+     size_t workerThread;
++    size_t requested;
+     friend class TilesetViewGroup;
+   };
+ 
+@@ -244,10 +245,14 @@ public:
+    */
+   bool isCreditReferenced(CesiumUtility::Credit credit) const noexcept;
+ 
++  /** @inheritdoc */
++  bool isTileLoadStillNeeded(const Tile& tile) const override;
++
+ private:
+   double _weight = 1.0;
+   std::vector<TileLoadTask> _mainThreadLoadQueue;
+   std::vector<TileLoadTask> _workerThreadLoadQueue;
++  std::vector<Tile*> _tilesRequestedThisFrame;
+   size_t _tilesAlreadyLoadingOrUnloading = 0;
+   float _loadProgressPercentage = 0.0f;
+   ViewUpdateResult _updateResult;
+diff --git a/Cesium3DTilesSelection/src/GltfModifier.cpp b/Cesium3DTilesSelection/src/GltfModifier.cpp
+index df64072..2999df6 100644
+--- a/Cesium3DTilesSelection/src/GltfModifier.cpp
++++ b/Cesium3DTilesSelection/src/GltfModifier.cpp
+@@ -229,4 +229,11 @@ const Tile* GltfModifier::getNextTileToLoadInMainThread() {
+   return pResult;
+ }
+ 
++bool GltfModifier::isTileLoadStillNeeded(const Tile& /*tile*/) const {
++  // A modifier only queues work for content that is already loaded. It must
++  // not keep an otherwise-stale initial content request alive merely because
++  // it is registered as a load requester.
++  return false;
++}
++
+ } // namespace Cesium3DTilesSelection
+diff --git a/Cesium3DTilesSelection/src/Tileset.cpp b/Cesium3DTilesSelection/src/Tileset.cpp
+index 82576d8..98f0a8c 100644
+--- a/Cesium3DTilesSelection/src/Tileset.cpp
++++ b/Cesium3DTilesSelection/src/Tileset.cpp
+@@ -474,6 +474,7 @@ void Tileset::loadTiles() {
+   this->_pTilesetContentManager->unloadCachedBytes(
+       this->_options.maximumCachedBytes,
+       this->_options.tileCacheUnloadTimeLimit);
++  this->_pTilesetContentManager->cancelUnneededTileLoads(this->_options);
+   this->_pTilesetContentManager->processWorkerThreadLoadRequests(
+       this->_options);
+   this->_pTilesetContentManager->processMainThreadLoadRequests(this->_options);
+@@ -501,6 +502,10 @@ int32_t Tileset::getNumberOfTilesLoaded() const {
+   return this->_pTilesetContentManager->getNumberOfTilesLoaded();
+ }
+ 
++uint64_t Tileset::getNumberOfCanceledTileLoads() const noexcept {
++  return this->_pTilesetContentManager->getNumberOfCanceledTileLoads();
++}
++
+ float Tileset::computeLoadProgress() noexcept {
+   return this->_defaultViewGroup.getPreviousLoadProgressPercentage();
+ }
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.cpp b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+index 9f69156..8290a39 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.cpp
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+@@ -89,6 +89,47 @@ using namespace CesiumUtility;
+ 
+ namespace Cesium3DTilesSelection {
+ namespace {
++class CancellationAssetAccessor final : public CesiumAsync::IAssetAccessor {
++public:
++  CancellationAssetAccessor(
++      std::shared_ptr<CesiumAsync::IAssetAccessor> pDelegate,
++      std::shared_ptr<const std::atomic_bool> pCancellationToken)
++      : _pDelegate(std::move(pDelegate)),
++        _options{std::move(pCancellationToken)} {}
++
++  CesiumAsync::Future<std::shared_ptr<CesiumAsync::IAssetRequest>> get(
++      const CesiumAsync::AsyncSystem& asyncSystem,
++      const std::string& url,
++      const std::vector<THeader>& headers) override {
++    return this->_pDelegate->getWithOptions(
++        asyncSystem,
++        url,
++        headers,
++        this->_options);
++  }
++
++  CesiumAsync::Future<std::shared_ptr<CesiumAsync::IAssetRequest>> request(
++      const CesiumAsync::AsyncSystem& asyncSystem,
++      const std::string& verb,
++      const std::string& url,
++      const std::vector<THeader>& headers,
++      const std::span<const std::byte>& contentPayload) override {
++    return this->_pDelegate->requestWithOptions(
++        asyncSystem,
++        verb,
++        url,
++        headers,
++        contentPayload,
++        this->_options);
++  }
++
++  void tick() noexcept override { this->_pDelegate->tick(); }
++
++private:
++  std::shared_ptr<CesiumAsync::IAssetAccessor> _pDelegate;
++  CesiumAsync::AssetRequestOptions _options;
++};
++
+ struct RegionAndCenter {
+   CesiumGeospatial::BoundingRegion region;
+   CesiumGeospatial::Cartographic center;
+@@ -609,21 +650,33 @@ postProcessContentInWorkerThread(
+     std::vector<CesiumGeospatial::Projection>&& projections,
+     TileContentLoadInfo&& tileLoadInfo,
+     const std::any& rendererOptions,
+-    const std::shared_ptr<GltfModifier>& pGltfModifier) {
++    const std::shared_ptr<GltfModifier>& pGltfModifier,
++    const std::shared_ptr<const std::atomic_bool>& pCancellationToken) {
+   CESIUM_ASSERT(
+       result.state == TileLoadResultState::Success &&
+       "This function requires result to be success");
+ 
++  auto asyncSystem = tileLoadInfo.asyncSystem;
++  if (pCancellationToken &&
++      pCancellationToken->load(std::memory_order_relaxed)) {
++    return asyncSystem.createResolvedFuture(
++        TileLoadResultAndRenderResources{std::move(result), nullptr});
++  }
++
+   std::optional<int64_t> version =
+       pGltfModifier ? pGltfModifier->getCurrentVersion() : std::nullopt;
+ 
+-  auto asyncSystem = tileLoadInfo.asyncSystem;
+-
+   result.initialBoundingVolume = tileLoadInfo.tileBoundingVolume;
+   result.initialContentBoundingVolume = tileLoadInfo.tileContentBoundingVolume;
+ 
+   postProcessGltfInWorkerThread(result, std::move(projections), tileLoadInfo);
+ 
++  if (pCancellationToken &&
++      pCancellationToken->load(std::memory_order_relaxed)) {
++    return asyncSystem.createResolvedFuture(
++        TileLoadResultAndRenderResources{std::move(result), nullptr});
++  }
++
+   auto applyGltfModifier = [&]() {
+     // Apply the glTF modifier right away, otherwise it will be
+     // triggered immediately after the renderer-side resources
+@@ -642,8 +695,12 @@ postProcessContentInWorkerThread(
+             .tileTransform = tileLoadInfo.tileTransform})
+         .thenInWorkerThread(
+             [result = std::move(result),
+-             version](std::optional<GltfModifierOutput>&& modified) mutable {
+-              if (modified) {
++             version,
++             pCancellationToken](
++                std::optional<GltfModifierOutput>&& modified) mutable {
++              if (modified &&
++                  !(pCancellationToken && pCancellationToken->load(
++                                               std::memory_order_relaxed))) {
+                 result.contentKind = std::move(modified->modifiedModel);
+               }
+ 
+@@ -665,10 +722,18 @@ postProcessContentInWorkerThread(
+                 .thenPassThrough(std::move(tileLoadInfo));
+ 
+   return std::move(future).thenInWorkerThread(
+-      [rendererOptions](
++      [rendererOptions, pCancellationToken](
+           std::tuple<TileContentLoadInfo, TileLoadResult>&& tuple) {
+         auto& [tileLoadInfo, result] = tuple;
+ 
++        if (pCancellationToken &&
++            pCancellationToken->load(std::memory_order_relaxed)) {
++          return tileLoadInfo.asyncSystem.createResolvedFuture(
++              TileLoadResultAndRenderResources{
++                  std::move(result),
++                  nullptr});
++        }
++
+         // create render resources
+         if (tileLoadInfo.pPrepareRendererResources) {
+           return tileLoadInfo.pPrepareRendererResources->prepareInLoadThread(
+@@ -717,6 +782,7 @@ TilesetContentManager::TilesetContentManager(
+       _loadedTilesCount{0},
+       _tilesDataUsed{0},
+       _loadedSharedImageUsage{},
++      _canceledTileLoads{0},
+       _tilesetDestroyed(false),
+       _pSharedAssetSystem(externals.pSharedAssetSystem),
+       _destructionCompletePromise{externals.asyncSystem.createPromise<void>()},
+@@ -726,6 +792,7 @@ TilesetContentManager::TilesetContentManager(
+       _rootTileAvailableFuture{
+           this->_rootTileAvailablePromise.getFuture().share()},
+       _requesters(),
++      _tileLoadCancellationTokens(),
+       _roundRobinValueWorker(0.0),
+       _roundRobinValueMain(0.0),
+       _requesterFractions(),
+@@ -1277,9 +1344,15 @@ void TilesetContentManager::loadTileContent(
+   notifyTileStartLoading(&tile);
+   tile.setState(TileLoadState::ContentLoading);
+ 
++  auto pCancellationToken = std::make_shared<std::atomic_bool>(false);
++  this->_tileLoadCancellationTokens[&tile] = pCancellationToken;
++  auto pTileAssetAccessor = std::make_shared<CancellationAssetAccessor>(
++      this->_externals.pAssetAccessor,
++      pCancellationToken);
++
+   TileContentLoadInfo tileLoadInfo{
+       this->_externals.asyncSystem,
+-      this->_externals.pAssetAccessor,
++      pTileAssetAccessor,
+       this->_externals.pPrepareRendererResources,
+       this->_externals.pLogger,
+       this->_pSharedAssetSystem,
+@@ -1297,7 +1370,7 @@ void TilesetContentManager::loadTileContent(
+       tile,
+       tilesetOptions.contentOptions,
+       this->_externals.asyncSystem,
+-      this->_externals.pAssetAccessor,
++      pTileAssetAccessor,
+       this->_externals.pLogger,
+       this->_requestHeaders,
+       tilesetOptions.ellipsoid};
+@@ -1313,7 +1386,8 @@ void TilesetContentManager::loadTileContent(
+                         tileLoadInfo = std::move(tileLoadInfo),
+                         projections = std::move(projections),
+                         rendererOptions = tilesetOptions.rendererOptions,
+-                        pGltfModifier = _externals.pGltfModifier](
++                        pGltfModifier = _externals.pGltfModifier,
++                        pCancellationToken](
+                            TileLoadResult&& result) mutable {
+         // the reason we run immediate continuation, instead of in the
+         // worker thread, is that the loader may run the task in the main
+@@ -1324,18 +1398,27 @@ void TilesetContentManager::loadTileContent(
+         // worker thread if the content is a render content
+         if (result.state == TileLoadResultState::Success) {
+           if (std::holds_alternative<CesiumGltf::Model>(result.contentKind)) {
++            auto asyncSystem = tileLoadInfo.asyncSystem;
++            if (pCancellationToken->load(std::memory_order_relaxed)) {
++              return asyncSystem.createResolvedFuture(
++                  TileLoadResultAndRenderResources{
++                      std::move(result),
++                      nullptr});
++            }
+             return asyncSystem.runInWorkerThread(
+                 [result = std::move(result),
+                  projections = std::move(projections),
+                  tileLoadInfo = std::move(tileLoadInfo),
+                  rendererOptions,
+-                 pGltfModifier]() mutable {
++                 pGltfModifier,
++                 pCancellationToken]() mutable {
+                   return postProcessContentInWorkerThread(
+                       std::move(result),
+                       std::move(projections),
+                       std::move(tileLoadInfo),
+                       rendererOptions,
+-                      pGltfModifier);
++                      pGltfModifier,
++                      pCancellationToken);
+                 });
+           }
+         }
+@@ -1346,9 +1429,26 @@ void TilesetContentManager::loadTileContent(
+       })
+       .thenInMainThread([pTile,
+                          thiz,
++                         pCancellationToken,
+                          tileLoadErrorCallback =
+                              tilesetOptions.tileLoadErrorCallback](
+                             TileLoadResultAndRenderResources&& pair) {
++        thiz->_tileLoadCancellationTokens.erase(pTile.get());
++        if (pCancellationToken->load(std::memory_order_relaxed)) {
++          pTile->getMappedRasterTiles().clear();
++          if (
++              pair.pRenderResources != nullptr &&
++              thiz->_externals.pPrepareRendererResources
++          ) {
++            thiz->_externals.pPrepareRendererResources->free(
++                *pTile,
++                pair.pRenderResources,
++                nullptr);
++          }
++          pTile->setState(TileLoadState::Unloaded);
++          thiz->notifyTileLoadCanceled(pTile.get());
++          return;
++        }
+         if (pair.result.state == TileLoadResultState::Failed &&
+             tileLoadErrorCallback) {
+           tileLoadErrorCallback(TileLoadFailureDetails{
+@@ -1375,10 +1475,17 @@ void TilesetContentManager::loadTileContent(
+       .catchInMainThread([pLogger = this->_externals.pLogger,
+                           pTile,
+                           thiz,
++                          pCancellationToken,
+                           tileLoadErrorCallback =
+                               tilesetOptions.tileLoadErrorCallback](
+                              std::exception&& e) {
++        thiz->_tileLoadCancellationTokens.erase(pTile.get());
+         pTile->getMappedRasterTiles().clear();
++        if (pCancellationToken->load(std::memory_order_relaxed)) {
++          pTile->setState(TileLoadState::Unloaded);
++          thiz->notifyTileLoadCanceled(pTile.get());
++          return;
++        }
+         pTile->setState(TileLoadState::Failed);
+         if (tileLoadErrorCallback) {
+           tileLoadErrorCallback(
+@@ -1659,6 +1766,11 @@ int64_t TilesetContentManager::getTotalDataUsed() const noexcept {
+   return bytes;
+ }
+ 
++uint64_t
++TilesetContentManager::getNumberOfCanceledTileLoads() const noexcept {
++  return this->_canceledTileLoads;
++}
++
+ void TilesetContentManager::finishLoading(
+     Tile& tile,
+     const TilesetOptions& tilesetOptions) {
+@@ -2065,6 +2177,35 @@ void TilesetContentManager::processMainThreadLoadRequests(
+   }
+ }
+ 
++void TilesetContentManager::cancelUnneededTileLoads(
++    const TilesetOptions& options) {
++  if (!options.enableStaleRequestCancellation) {
++    return;
++  }
++
++  for (const auto& [pTile, pCancellationToken] :
++       this->_tileLoadCancellationTokens) {
++    if (
++        pTile == nullptr || !pCancellationToken ||
++        pCancellationToken->load(std::memory_order_relaxed)
++    ) {
++      continue;
++    }
++
++    const bool stillNeeded = std::any_of(
++        this->_requesters.begin(),
++        this->_requesters.end(),
++        [pTile](const TileLoadRequester* pRequester) {
++          return pRequester != nullptr &&
++                 pRequester->isTileLoadStillNeeded(*pTile);
++        });
++    if (!stillNeeded) {
++      pCancellationToken->store(true, std::memory_order_relaxed);
++      ++this->_canceledTileLoads;
++    }
++  }
++}
++
+ void TilesetContentManager::markTilesetDestroyed() noexcept {
+   this->_tilesetDestroyed = true;
+ 
+@@ -2074,6 +2215,13 @@ void TilesetContentManager::markTilesetDestroyed() noexcept {
+   if (this->_externals.pGltfModifier) {
+     this->_externals.pGltfModifier->onUnregister(*this);
+   }
++
++  for (const auto& [pTile, pCancellationToken] :
++       this->_tileLoadCancellationTokens) {
++    if (pCancellationToken) {
++      pCancellationToken->store(true, std::memory_order_relaxed);
++    }
++  }
+ }
+ 
+ void TilesetContentManager::releaseReference() const {
+@@ -2318,6 +2466,14 @@ void TilesetContentManager::notifyTileDoneLoading(const Tile* pTile) noexcept {
+   }
+ }
+ 
++void TilesetContentManager::notifyTileLoadCanceled(
++    [[maybe_unused]] const Tile* pTile) noexcept {
++  CESIUM_ASSERT(
++      this->_tileLoadsInProgress > 0 &&
++      "There are no tile loads currently in flight");
++  --this->_tileLoadsInProgress;
++}
++
+ void TilesetContentManager::notifyTileUnloading(const Tile* pTile) noexcept {
+   if (pTile) {
+     this->_tilesDataUsed -= computeTileNonImageDataBytes(*pTile);
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.h b/Cesium3DTilesSelection/src/TilesetContentManager.h
+index 7d83d68..a79c75a 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.h
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.h
+@@ -17,6 +17,8 @@
+ #include <CesiumUtility/CreditSystem.h>
+ #include <CesiumUtility/ReferenceCounted.h>
+ 
++#include <atomic>
++#include <unordered_map>
+ #include <vector>
+ 
+ namespace CesiumImage {
+@@ -158,6 +160,8 @@ public:
+ 
+   int64_t getTotalDataUsed() const noexcept;
+ 
++  uint64_t getNumberOfCanceledTileLoads() const noexcept;
++
+   // Transition the tile from the ContentLoaded to the Done state.
+   void finishLoading(Tile& tile, const TilesetOptions& tilesetOptions);
+ 
+@@ -184,6 +188,7 @@ public:
+ 
+   void processWorkerThreadLoadRequests(const TilesetOptions& options);
+   void processMainThreadLoadRequests(const TilesetOptions& options);
++  void cancelUnneededTileLoads(const TilesetOptions& options);
+ 
+   void markTilesetDestroyed() noexcept;
+   void releaseReference() const;
+@@ -221,6 +226,8 @@ private:
+ 
+   void notifyTileDoneLoading(const Tile* pTile) noexcept;
+ 
++  void notifyTileLoadCanceled(const Tile* pTile) noexcept;
++
+   void notifyTileUnloading(const Tile* pTile) noexcept;
+ 
+   void reapplyGltfModifier(
+@@ -259,6 +266,7 @@ private:
+   std::unordered_map<const CesiumImage::ImageAsset*, LoadedSharedImageUsage>
+       _loadedSharedImageUsage;
+ 
++  uint64_t _canceledTileLoads;
+   bool _tilesetDestroyed;
+ 
+   // Stores assets that might be shared between tiles.
+@@ -274,6 +282,8 @@ private:
+   TileUnloadQueue _unloadQueue;
+ 
+   std::vector<TileLoadRequester*> _requesters;
++  std::unordered_map<Tile*, std::shared_ptr<std::atomic_bool>>
++      _tileLoadCancellationTokens;
+   double _roundRobinValueWorker;
+   double _roundRobinValueMain;
+ 
+diff --git a/Cesium3DTilesSelection/src/TilesetHeightQuery.cpp b/Cesium3DTilesSelection/src/TilesetHeightQuery.cpp
+index b30601d..4616ce8 100644
+--- a/Cesium3DTilesSelection/src/TilesetHeightQuery.cpp
++++ b/Cesium3DTilesSelection/src/TilesetHeightQuery.cpp
+@@ -274,6 +274,18 @@ const Tile* TilesetHeightRequest::getNextTileToLoadInMainThread() {
+   return nullptr;
+ }
+ 
++bool TilesetHeightRequest::isTileLoadStillNeeded(const Tile& tile) const {
++  for (const Tile* pRequested : this->tilesNeededForCurrentRequest) {
++    for (const Tile* pCurrent = pRequested; pCurrent != nullptr;
++         pCurrent = pCurrent->getParent()) {
++      if (pCurrent == &tile) {
++        return true;
++      }
++    }
++  }
++  return false;
++}
++
+ void Cesium3DTilesSelection::TilesetHeightRequest::failHeightRequests(
+     std::list<TilesetHeightRequest>& heightRequests,
+     const std::string& message) {
+@@ -298,6 +310,7 @@ bool TilesetHeightRequest::tryCompleteHeightRequest(
+     TilesetContentManager& contentManager,
+     const TilesetOptions& options) {
+   this->tilesToLoad.clear();
++  this->tilesNeededForCurrentRequest.clear();
+ 
+   // If this TilesetContentLoader supports direct height queries, use that
+   // instead of downloading tiles.
+@@ -362,6 +375,7 @@ bool TilesetHeightRequest::tryCompleteHeightRequest(
+             tileStillNeedsLoading = true;
+           } else if (state <= TileLoadState::ContentLoading) {
+             this->tilesToLoad.insert(pTile);
++            this->tilesNeededForCurrentRequest.insert(pTile);
+             tileStillNeedsLoading = true;
+           }
+         };
+diff --git a/Cesium3DTilesSelection/src/TilesetHeightQuery.h b/Cesium3DTilesSelection/src/TilesetHeightQuery.h
+index 39c846f..4b96545 100644
+--- a/Cesium3DTilesSelection/src/TilesetHeightQuery.h
++++ b/Cesium3DTilesSelection/src/TilesetHeightQuery.h
+@@ -133,6 +133,13 @@ struct TilesetHeightRequest : public TileLoadRequester {
+    */
+   std::set<Tile*> tilesToLoad;
+ 
++  /**
++   * Tiles needed by the current query pass, retained even after scheduler
++   * queue entries are consumed so active loads are not mistaken for stale
++   * work.
++   */
++  std::set<Tile*> tilesNeededForCurrentRequest;
++
+   /**
+    * @brief Process a given list of height requests. This is called by the {@link Tileset}
+    * in every call to {@link Tileset::updateView}.
+@@ -161,6 +168,8 @@ struct TilesetHeightRequest : public TileLoadRequester {
+   /** @inheritdoc */
+   const Tile* getNextTileToLoadInMainThread() override;
+ 
++  bool isTileLoadStillNeeded(const Tile& tile) const override;
++
+   /**
+    * @brief Cancels all outstanding height requests and rejects the associated
+    * futures. This is useful when it is known that the height requests will
+diff --git a/Cesium3DTilesSelection/src/TilesetViewGroup.cpp b/Cesium3DTilesSelection/src/TilesetViewGroup.cpp
+index 4407454..63af595 100644
+--- a/Cesium3DTilesSelection/src/TilesetViewGroup.cpp
++++ b/Cesium3DTilesSelection/src/TilesetViewGroup.cpp
+@@ -49,6 +49,13 @@ void TilesetViewGroup::addToLoadQueue(
+   Tile* pTile = task.pTile;
+   CESIUM_ASSERT(pTile != nullptr);
+ 
++  CESIUM_ASSERT(
++      std::find(
++          this->_tilesRequestedThisFrame.begin(),
++          this->_tilesRequestedThisFrame.end(),
++          pTile) == this->_tilesRequestedThisFrame.end());
++  this->_tilesRequestedThisFrame.emplace_back(pTile);
++
+   // Assert that this tile hasn't been added to a queue already.
+   CESIUM_ASSERT(
+       std::find_if(
+@@ -82,6 +89,7 @@ TilesetViewGroup::saveTileLoadQueueCheckpoint() {
+   LoadQueueCheckpoint result;
+   result.mainThread = this->_mainThreadLoadQueue.size();
+   result.workerThread = this->_workerThreadLoadQueue.size();
++  result.requested = this->_tilesRequestedThisFrame.size();
+   return result;
+ }
+ 
+@@ -89,12 +97,15 @@ size_t TilesetViewGroup::restoreTileLoadQueueCheckpoint(
+     const LoadQueueCheckpoint& checkpoint) {
+   CESIUM_ASSERT(this->_workerThreadLoadQueue.size() >= checkpoint.workerThread);
+   CESIUM_ASSERT(this->_mainThreadLoadQueue.size() >= checkpoint.mainThread);
++  CESIUM_ASSERT(
++      this->_tilesRequestedThisFrame.size() >= checkpoint.requested);
+ 
+   size_t before =
+       this->_workerThreadLoadQueue.size() + this->_mainThreadLoadQueue.size();
+ 
+   this->_workerThreadLoadQueue.resize(checkpoint.workerThread);
+   this->_mainThreadLoadQueue.resize(checkpoint.mainThread);
++  this->_tilesRequestedThisFrame.resize(checkpoint.requested);
+ 
+   size_t after =
+       this->_workerThreadLoadQueue.size() + this->_mainThreadLoadQueue.size();
+@@ -115,6 +126,7 @@ void TilesetViewGroup::startNewFrame(
+     const TilesetFrameState& /*frameState*/) {
+   this->_workerThreadLoadQueue.clear();
+   this->_mainThreadLoadQueue.clear();
++  this->_tilesRequestedThisFrame.clear();
+   this->_tilesAlreadyLoadingOrUnloading = 0;
+   this->_traversalState.beginTraversal();
+ 
+@@ -274,4 +286,16 @@ bool TilesetViewGroup::isCreditReferenced(
+   return this->_previousFrameCredits.isCreditReferenced(credit);
+ }
+ 
++bool TilesetViewGroup::isTileLoadStillNeeded(const Tile& tile) const {
++  for (const Tile* pRequested : this->_tilesRequestedThisFrame) {
++    for (const Tile* pCurrent = pRequested; pCurrent != nullptr;
++         pCurrent = pCurrent->getParent()) {
++      if (pCurrent == &tile) {
++        return true;
++      }
++    }
++  }
++  return false;
++}
++
+ } // namespace Cesium3DTilesSelection
+diff --git a/CesiumAsync/include/CesiumAsync/CachingAssetAccessor.h b/CesiumAsync/include/CesiumAsync/CachingAssetAccessor.h
+index 97dba17..5851372 100644
+--- a/CesiumAsync/include/CesiumAsync/CachingAssetAccessor.h
++++ b/CesiumAsync/include/CesiumAsync/CachingAssetAccessor.h
+@@ -50,6 +50,12 @@ public:
+       const std::string& url,
+       const std::vector<THeader>& headers) override;
+ 
++  virtual Future<std::shared_ptr<IAssetRequest>> getWithOptions(
++      const AsyncSystem& asyncSystem,
++      const std::string& url,
++      const std::vector<THeader>& headers,
++      const AssetRequestOptions& options) override;
++
+   virtual Future<std::shared_ptr<IAssetRequest>> request(
+       const AsyncSystem& asyncSystem,
+       const std::string& verb,
+@@ -57,6 +63,14 @@ public:
+       const std::vector<THeader>& headers,
+       const std::span<const std::byte>& contentPayload) override;
+ 
++  virtual Future<std::shared_ptr<IAssetRequest>> requestWithOptions(
++      const AsyncSystem& asyncSystem,
++      const std::string& verb,
++      const std::string& url,
++      const std::vector<THeader>& headers,
++      const std::span<const std::byte>& contentPayload,
++      const AssetRequestOptions& options) override;
++
+   /** @copydoc IAssetAccessor::tick */
+   virtual void tick() noexcept override;
+ 
+diff --git a/CesiumAsync/include/CesiumAsync/GunzipAssetAccessor.h b/CesiumAsync/include/CesiumAsync/GunzipAssetAccessor.h
+index 160eaef..b262b8f 100644
+--- a/CesiumAsync/include/CesiumAsync/GunzipAssetAccessor.h
++++ b/CesiumAsync/include/CesiumAsync/GunzipAssetAccessor.h
+@@ -28,6 +28,12 @@ public:
+       const std::string& url,
+       const std::vector<THeader>& headers) override;
+ 
++  virtual Future<std::shared_ptr<IAssetRequest>> getWithOptions(
++      const AsyncSystem& asyncSystem,
++      const std::string& url,
++      const std::vector<THeader>& headers,
++      const AssetRequestOptions& options) override;
++
+   virtual Future<std::shared_ptr<IAssetRequest>> request(
+       const AsyncSystem& asyncSystem,
+       const std::string& verb,
+@@ -35,6 +41,14 @@ public:
+       const std::vector<THeader>& headers,
+       const std::span<const std::byte>& contentPayload) override;
+ 
++  virtual Future<std::shared_ptr<IAssetRequest>> requestWithOptions(
++      const AsyncSystem& asyncSystem,
++      const std::string& verb,
++      const std::string& url,
++      const std::vector<THeader>& headers,
++      const std::span<const std::byte>& contentPayload,
++      const AssetRequestOptions& options) override;
++
+   /** @copydoc IAssetAccessor::tick */
+   virtual void tick() noexcept override;
+ 
+diff --git a/CesiumAsync/include/CesiumAsync/IAssetAccessor.h b/CesiumAsync/include/CesiumAsync/IAssetAccessor.h
+index 6d5683c..f742637 100644
+--- a/CesiumAsync/include/CesiumAsync/IAssetAccessor.h
++++ b/CesiumAsync/include/CesiumAsync/IAssetAccessor.h
+@@ -4,6 +4,7 @@
+ #include <CesiumAsync/IAssetRequest.h>
+ #include <CesiumAsync/Library.h>
+ 
++#include <atomic>
+ #include <cstddef>
+ #include <memory>
+ #include <span>
+@@ -14,6 +15,29 @@ namespace CesiumAsync {
+ 
+ class AsyncSystem;
+ 
++/**
++ * @brief Optional controls associated with one asset request.
++ *
++ * Accessors that do not support a particular control may safely ignore it.
++ * Decorator accessors should pass these options through to their delegate.
++ */
++struct CESIUMASYNC_API AssetRequestOptions {
++  /**
++   * @brief A shared signal that becomes `true` when the request is no longer
++   * useful.
++   *
++   * Implementations should abort transport and expensive response processing
++   * promptly when practical. The signal is one-way and thread-safe.
++   */
++  std::shared_ptr<const std::atomic_bool> pCancellationToken;
++
++  /** @brief Returns whether cancellation has been requested. */
++  bool isCancellationRequested() const noexcept {
++    return this->pCancellationToken &&
++           this->pCancellationToken->load(std::memory_order_relaxed);
++  }
++};
++
+ /**
+  * @brief Provides asynchronous access to assets, usually files downloaded via
+  * HTTP.
+@@ -41,6 +65,20 @@ public:
+       const std::string& url,
+       const std::vector<THeader>& headers = {}) = 0;
+ 
++  /**
++   * @brief Starts a GET with optional request controls.
++   *
++   * The default implementation preserves compatibility with existing
++   * accessors by forwarding to {@link get} and ignoring the options.
++   */
++  virtual CesiumAsync::Future<std::shared_ptr<IAssetRequest>> getWithOptions(
++      const AsyncSystem& asyncSystem,
++      const std::string& url,
++      const std::vector<THeader>& headers,
++      const AssetRequestOptions& /*options*/) {
++    return this->get(asyncSystem, url, headers);
++  }
++
+   /**
+    * @brief Starts a new request to the given URL, using the provided HTTP verb
+    * and the provided content payload.
+@@ -61,6 +99,22 @@ public:
+       const std::vector<THeader>& headers = std::vector<THeader>(),
+       const std::span<const std::byte>& contentPayload = {}) = 0;
+ 
++  /**
++   * @brief Starts a non-GET request with optional request controls.
++   *
++   * The default implementation forwards to {@link request}.
++   */
++  virtual CesiumAsync::Future<std::shared_ptr<IAssetRequest>>
++  requestWithOptions(
++      const AsyncSystem& asyncSystem,
++      const std::string& verb,
++      const std::string& url,
++      const std::vector<THeader>& headers,
++      const std::span<const std::byte>& contentPayload,
++      const AssetRequestOptions& /*options*/) {
++    return this->request(asyncSystem, verb, url, headers, contentPayload);
++  }
++
+   /**
+    * @brief Ticks the asset accessor system while the main thread is blocked.
+    *
+diff --git a/CesiumAsync/src/CachingAssetAccessor.cpp b/CesiumAsync/src/CachingAssetAccessor.cpp
+index 733e1fd..27e5b00 100644
+--- a/CesiumAsync/src/CachingAssetAccessor.cpp
++++ b/CesiumAsync/src/CachingAssetAccessor.cpp
+@@ -21,6 +21,7 @@
+ #include <optional>
+ #include <span>
+ #include <sstream>
++#include <stdexcept>
+ #include <string>
+ #include <utility>
+ #include <vector>
+@@ -164,6 +165,14 @@ Future<std::shared_ptr<IAssetRequest>> CachingAssetAccessor::get(
+     const AsyncSystem& asyncSystem,
+     const std::string& url,
+     const std::vector<THeader>& headers) {
++  return this->getWithOptions(asyncSystem, url, headers, {});
++}
++
++Future<std::shared_ptr<IAssetRequest>> CachingAssetAccessor::getWithOptions(
++    const AsyncSystem& asyncSystem,
++    const std::string& url,
++    const std::vector<THeader>& headers,
++    const AssetRequestOptions& options) {
+   const int32_t requestSinceLastPrune = ++this->_requestSinceLastPrune;
+   if (requestSinceLastPrune == this->_requestsPerCachePrune) {
+     // More requests may have started and incremented _requestSinceLastPrune
+@@ -189,16 +198,25 @@ Future<std::shared_ptr<IAssetRequest>> CachingAssetAccessor::get(
+            pLogger = this->_pLogger,
+            url = url,
+            headers = headers,
++           options,
+            threadPool]() mutable -> Future<std::shared_ptr<IAssetRequest>> {
++            if (options.isCancellationRequested()) {
++              throw std::runtime_error(
++                  "Cached GET request canceled before lookup");
++            }
+             std::optional<CacheItem> cacheLookup =
+                 pCacheDatabase->getEntry(url);
+             if (!cacheLookup) {
+               // No cache item found, request directly from the server
+-              return pAssetAccessor->get(asyncSystem, url, headers)
++              return pAssetAccessor
++                  ->getWithOptions(asyncSystem, url, headers, options)
+                   .thenInThreadPool(
+                       threadPool,
+-                      [pCacheDatabase, pLogger](
++                      [pCacheDatabase, pLogger, options](
+                           std::shared_ptr<IAssetRequest>&& pCompletedRequest) {
++                        if (options.isCancellationRequested()) {
++                          return std::move(pCompletedRequest);
++                        }
+                         const IAssetResponse* pResponse =
+                             pCompletedRequest->response();
+                         if (!pResponse) {
+@@ -249,16 +267,21 @@ Future<std::shared_ptr<IAssetRequest>> CachingAssetAccessor::get(
+                       lastModifiedHeader->second);
+               }
+ 
+-              return pAssetAccessor->get(asyncSystem, url, newHeaders)
++              return pAssetAccessor
++                  ->getWithOptions(asyncSystem, url, newHeaders, options)
+                   .thenInThreadPool(
+                       threadPool,
+                       [cacheItem = std::move(cacheItem),
+                        pCacheDatabase,
+                        pLogger,
++                       options,
+                        url = std::move(url),
+                        headers =
+                            std::move(headers)](std::shared_ptr<IAssetRequest>&&
+                                                    pCompletedRequest) mutable {
++                        if (options.isCancellationRequested()) {
++                          return std::move(pCompletedRequest);
++                        }
+                         if (!pCompletedRequest) {
+                           return std::move(pCompletedRequest);
+                         }
+@@ -333,8 +356,31 @@ Future<std::shared_ptr<IAssetRequest>> CachingAssetAccessor::request(
+     const std::string& url,
+     const std::vector<THeader>& headers,
+     const std::span<const std::byte>& contentPayload) {
++  return this->requestWithOptions(
++      asyncSystem,
++      verb,
++      url,
++      headers,
++      contentPayload,
++      {});
++}
++
++Future<std::shared_ptr<IAssetRequest>>
++CachingAssetAccessor::requestWithOptions(
++    const AsyncSystem& asyncSystem,
++    const std::string& verb,
++    const std::string& url,
++    const std::vector<THeader>& headers,
++    const std::span<const std::byte>& contentPayload,
++    const AssetRequestOptions& options) {
+   return this->_pAssetAccessor
+-      ->request(asyncSystem, verb, url, headers, contentPayload);
++      ->requestWithOptions(
++          asyncSystem,
++          verb,
++          url,
++          headers,
++          contentPayload,
++          options);
+ }
+ 
+ void CachingAssetAccessor::tick() noexcept { _pAssetAccessor->tick(); }
+diff --git a/CesiumAsync/src/GunzipAssetAccessor.cpp b/CesiumAsync/src/GunzipAssetAccessor.cpp
+index 5bac154..4f42140 100644
+--- a/CesiumAsync/src/GunzipAssetAccessor.cpp
++++ b/CesiumAsync/src/GunzipAssetAccessor.cpp
+@@ -10,6 +10,7 @@
+ #include <cstdint>
+ #include <memory>
+ #include <span>
++#include <stdexcept>
+ #include <string>
+ #include <utility>
+ #include <vector>
+@@ -103,9 +104,23 @@ Future<std::shared_ptr<IAssetRequest>> GunzipAssetAccessor::get(
+     const AsyncSystem& asyncSystem,
+     const std::string& url,
+     const std::vector<THeader>& headers) {
+-  return this->_pAssetAccessor->get(asyncSystem, url, headers)
++  return this->getWithOptions(asyncSystem, url, headers, {});
++}
++
++Future<std::shared_ptr<IAssetRequest>> GunzipAssetAccessor::getWithOptions(
++    const AsyncSystem& asyncSystem,
++    const std::string& url,
++    const std::vector<THeader>& headers,
++    const AssetRequestOptions& options) {
++  return this->_pAssetAccessor
++      ->getWithOptions(asyncSystem, url, headers, options)
+       .thenImmediately(
+-          [asyncSystem](std::shared_ptr<IAssetRequest>&& pCompletedRequest) {
++          [asyncSystem, options](
++              std::shared_ptr<IAssetRequest>&& pCompletedRequest) {
++            if (options.isCancellationRequested()) {
++              throw std::runtime_error(
++                  "GET request canceled before decompression");
++            }
+             return gunzipIfNeeded(asyncSystem, std::move(pCompletedRequest));
+           });
+ }
+@@ -116,10 +131,38 @@ Future<std::shared_ptr<IAssetRequest>> GunzipAssetAccessor::request(
+     const std::string& url,
+     const std::vector<THeader>& headers,
+     const std::span<const std::byte>& contentPayload) {
++  return this->requestWithOptions(
++      asyncSystem,
++      verb,
++      url,
++      headers,
++      contentPayload,
++      {});
++}
++
++Future<std::shared_ptr<IAssetRequest>>
++GunzipAssetAccessor::requestWithOptions(
++    const AsyncSystem& asyncSystem,
++    const std::string& verb,
++    const std::string& url,
++    const std::vector<THeader>& headers,
++    const std::span<const std::byte>& contentPayload,
++    const AssetRequestOptions& options) {
+   return this->_pAssetAccessor
+-      ->request(asyncSystem, verb, url, headers, contentPayload)
++      ->requestWithOptions(
++          asyncSystem,
++          verb,
++          url,
++          headers,
++          contentPayload,
++          options)
+       .thenImmediately(
+-          [asyncSystem](std::shared_ptr<IAssetRequest>&& pCompletedRequest) {
++          [asyncSystem, options](
++              std::shared_ptr<IAssetRequest>&& pCompletedRequest) {
++            if (options.isCancellationRequested()) {
++              throw std::runtime_error(
++                  "Asset request canceled before decompression");
++            }
+             return gunzipIfNeeded(asyncSystem, std::move(pCompletedRequest));
+           });
+ }
+diff --git a/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h b/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h
+index ed34cb7..a8e2e74 100644
+--- a/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h
++++ b/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h
+@@ -110,6 +110,14 @@ public:
+       const std::vector<CesiumAsync::IAssetAccessor::THeader>& headers)
+       override;
+ 
++  /** @inheritdoc */
++  CesiumAsync::Future<std::shared_ptr<CesiumAsync::IAssetRequest>>
++  getWithOptions(
++      const CesiumAsync::AsyncSystem& asyncSystem,
++      const std::string& url,
++      const std::vector<CesiumAsync::IAssetAccessor::THeader>& headers,
++      const CesiumAsync::AssetRequestOptions& options) override;
++
+   /** @inheritdoc */
+   CesiumAsync::Future<std::shared_ptr<CesiumAsync::IAssetRequest>> request(
+       const CesiumAsync::AsyncSystem& asyncSystem,
+@@ -118,6 +126,16 @@ public:
+       const std::vector<CesiumAsync::IAssetAccessor::THeader>& headers,
+       const std::span<const std::byte>& contentPayload) override;
+ 
++  /** @inheritdoc */
++  CesiumAsync::Future<std::shared_ptr<CesiumAsync::IAssetRequest>>
++  requestWithOptions(
++      const CesiumAsync::AsyncSystem& asyncSystem,
++      const std::string& verb,
++      const std::string& url,
++      const std::vector<CesiumAsync::IAssetAccessor::THeader>& headers,
++      const std::span<const std::byte>& contentPayload,
++      const CesiumAsync::AssetRequestOptions& options) override;
++
+   /** @inheritdoc */
+   void tick() noexcept override;
+ 
+diff --git a/CesiumCurl/src/CurlAssetAccessor.cpp b/CesiumCurl/src/CurlAssetAccessor.cpp
+index c3d4a9d..1591957 100644
+--- a/CesiumCurl/src/CurlAssetAccessor.cpp
++++ b/CesiumCurl/src/CurlAssetAccessor.cpp
+@@ -344,6 +344,33 @@ curl_slist* setCommonOptions(
+   return list;
+ }
+ 
++int cancellationProgressCallback(
++    void* pUserData,
++    curl_off_t /*downloadTotal*/,
++    curl_off_t /*downloadNow*/,
++    curl_off_t /*uploadTotal*/,
++    curl_off_t /*uploadNow*/) {
++  const auto* pCanceled = static_cast<const std::atomic_bool*>(pUserData);
++  return pCanceled && pCanceled->load(std::memory_order_relaxed) ? 1 : 0;
++}
++
++void setCancellationOptions(
++    CURL* curl,
++    const AssetRequestOptions& options) {
++  if (!options.pCancellationToken) {
++    return;
++  }
++  curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
++  curl_easy_setopt(
++      curl,
++      CURLOPT_XFERINFOFUNCTION,
++      cancellationProgressCallback);
++  curl_easy_setopt(
++      curl,
++      CURLOPT_XFERINFODATA,
++      options.pCancellationToken.get());
++}
++
+ } // namespace
+ 
+ CurlAssetAccessor::CurlAssetAccessor(const CurlAssetAccessorOptions& options)
+@@ -367,11 +394,23 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::get(
+     const AsyncSystem& asyncSystem,
+     const std::string& url,
+     const std::vector<IAssetAccessor::THeader>& headers) {
++  return this->getWithOptions(asyncSystem, url, headers, {});
++}
++
++Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::getWithOptions(
++    const AsyncSystem& asyncSystem,
++    const std::string& url,
++    const std::vector<IAssetAccessor::THeader>& headers,
++    const AssetRequestOptions& options) {
+   return asyncSystem.runInWorkerThread(
+       [url,
+        headers,
++       options,
+        pThis = this->shared_from_this()]() -> std::shared_ptr<IAssetRequest> {
+         CESIUM_TRACE("CurlAssetAccessor::get");
++        if (options.isCancellationRequested()) {
++          throw std::runtime_error("GET request canceled before transfer");
++        }
+         std::shared_ptr<CurlAssetRequest> pRequest =
+             std::make_shared<CurlAssetRequest>(
+                 "GET",
+@@ -388,6 +427,7 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::get(
+             pThis->_options.userAgent,
+             pThis->_options.certificatePath,
+             pThis->_options.certificateFile);
++        setCancellationOptions(curl(), options);
+         std::unique_ptr<CurlAssetResponse> pResponse =
+             std::make_unique<CurlAssetResponse>();
+         pResponse->setCallbacks(curl());
+@@ -439,6 +479,22 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::request(
+     const std::string& url,
+     const std::vector<IAssetAccessor::THeader>& headers,
+     const std::span<const std::byte>& contentPayload) {
++  return this->requestWithOptions(
++      asyncSystem,
++      verb,
++      url,
++      headers,
++      contentPayload,
++      {});
++}
++
++Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::requestWithOptions(
++    const AsyncSystem& asyncSystem,
++    const std::string& verb,
++    const std::string& url,
++    const std::vector<IAssetAccessor::THeader>& headers,
++    const std::span<const std::byte>& contentPayload,
++    const AssetRequestOptions& options) {
+   std::vector<std::byte> payloadCopy(
+       contentPayload.begin(),
+       contentPayload.end());
+@@ -446,10 +502,14 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::request(
+       [url,
+        headers,
+        verb,
++       options,
+        payloadCopy = std::move(payloadCopy),
+        pThis = this->shared_from_this()]() mutable
+       -> std::shared_ptr<IAssetRequest> {
+         CESIUM_TRACE("CurlAssetAccessor::request");
++        if (options.isCancellationRequested()) {
++          throw std::runtime_error("Asset request canceled before transfer");
++        }
+ 
+         CURLoption verbOption;
+         if (verb == "POST") {
+@@ -491,6 +551,7 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::request(
+             pThis->_options.userAgent,
+             pThis->_options.certificatePath,
+             pThis->_options.certificateFile);
++        setCancellationOptions(curl(), options);
+ 
+         curl_easy_setopt(curl(), verbOption, 1);
+         curl_easy_setopt(
+diff --git a/CesiumCurl/test/TestCurlAssetAccessor.cpp b/CesiumCurl/test/TestCurlAssetAccessor.cpp
+index e3da7b5..79ad1c5 100644
+--- a/CesiumCurl/test/TestCurlAssetAccessor.cpp
++++ b/CesiumCurl/test/TestCurlAssetAccessor.cpp
+@@ -9,12 +9,15 @@
+ #include <doctest/doctest.h>
+ #include <httplib.h>
+ 
++#include <atomic>
++#include <chrono>
+ #include <cstddef>
+ #include <cstdint>
+ #include <filesystem>
+ #include <fstream>
+ #include <memory>
+ #include <span>
++#include <thread>
+ 
+ using namespace CesiumCurl;
+ using namespace CesiumNativeTests;
+@@ -29,6 +32,19 @@ TEST_CASE("CurlAssetAccessor") {
+   std::shared_ptr<CurlAssetAccessor> pAssetAccessor =
+       std::make_shared<CurlAssetAccessor>(options);
+ 
++  SUBCASE("honors a request canceled before transfer") {
++    auto pCanceled = std::make_shared<std::atomic_bool>(true);
++    CesiumAsync::AssetRequestOptions requestOptions{pCanceled};
++    CHECK_THROWS(
++        pAssetAccessor
++            ->getWithOptions(
++                asyncSystem,
++                "http://127.0.0.1:1/will-not-connect",
++                {},
++                requestOptions)
++            .waitInMainThread());
++  }
++
+   SUBCASE("can do HTTP requests") {
+     std::shared_ptr<httplib::Server> pServer =
+         std::make_shared<httplib::Server>();
+@@ -38,6 +54,47 @@ TEST_CASE("CurlAssetAccessor") {
+ 
+     std::thread([pServer]() { pServer->listen_after_bind(); }).detach();
+ 
++    SUBCASE("aborts an active transfer when it becomes stale") {
++      using namespace std::chrono_literals;
++
++      constexpr size_t responseSize = 64 * 1024 * 1024;
++      std::atomic_bool responseStarted{false};
++      pServer->Get(
++          "/test/slow.bin",
++          [&responseStarted](const httplib::Request& /*request*/,
++                             httplib::Response& response) {
++            response.set_content_provider(
++                responseSize,
++                "application/octet-stream",
++                [&responseStarted](size_t /*offset*/,
++                                   size_t length,
++                                   httplib::DataSink& sink) {
++                  responseStarted.store(true, std::memory_order_release);
++                  std::this_thread::sleep_for(2ms);
++                  const std::string bytes(length, 'x');
++                  return sink.write(bytes.data(), bytes.size());
++                });
++          });
++
++      auto pCanceled = std::make_shared<std::atomic_bool>(false);
++      CesiumAsync::AssetRequestOptions requestOptions{pCanceled};
++      auto future = pAssetAccessor->getWithOptions(
++          asyncSystem,
++          fmt::format("http://127.0.0.1:{}/test/slow.bin", port),
++          {},
++          requestOptions);
++
++      std::thread cancelThread([&responseStarted, pCanceled]() {
++        while (!responseStarted.load(std::memory_order_acquire)) {
++          std::this_thread::yield();
++        }
++        pCanceled->store(true, std::memory_order_relaxed);
++      });
++
++      CHECK_THROWS(future.waitInMainThread());
++      cancelThread.join();
++    }
++
+     SUBCASE("GET") {
+       pServer->Get(
+           "/test/some/file.txt",
+@@ -293,4 +350,4 @@ TEST_CASE("CurlAssetAccessor") {
+       CHECK_EQ(content, "this is the content in the file");
+     }
+   }
+-}
+\ No newline at end of file
++}

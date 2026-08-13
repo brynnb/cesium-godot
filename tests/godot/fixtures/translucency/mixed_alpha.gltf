@@ -1,0 +1,129 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "Cesium for Godot translucency test"
+  },
+  "extras": {
+    "gltfUpAxis": 2
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [0]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0
+    }
+  ],
+  "meshes": [
+    {
+      "name": "MixedAlphaPrimitives",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "material": 0,
+          "mode": 4
+        },
+        {
+          "attributes": {
+            "POSITION": 1
+          },
+          "material": 1,
+          "mode": 4
+        },
+        {
+          "attributes": {
+            "POSITION": 2
+          },
+          "material": 2,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "name": "OpaquePrimitive",
+      "alphaMode": "OPAQUE",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [1.0, 0.1, 0.1, 1.0],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 1.0
+      }
+    },
+    {
+      "name": "BlendPrimitiveA",
+      "alphaMode": "BLEND",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [0.1, 1.0, 0.1, 0.5],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 1.0
+      }
+    },
+    {
+      "name": "BlendPrimitiveB",
+      "alphaMode": "BLEND",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [0.1, 0.1, 1.0, 0.5],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 1.0
+      }
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 108,
+      "uri": "data:application/octet-stream;base64,AAAAAAAA8MEAACDBAAAAAAAAIMEAACDBAAAAAAAAoMEAACBBAAAAAAAAIMEAACDBAAAAAAAAIEEAACDBAAAAAAAAAAAAACBBAAAAAAAAIEEAACDBAAAAAAAA8EEAACDBAAAAAAAAoEEAACBB"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 36,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 36,
+      "byteLength": 36,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 72,
+      "byteLength": 36,
+      "target": 34962
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 3,
+      "type": "VEC3",
+      "min": [0, -30, -10],
+      "max": [0, -10, 10]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 3,
+      "type": "VEC3",
+      "min": [0, -10, -10],
+      "max": [0, 10, 10]
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 3,
+      "type": "VEC3",
+      "min": [0, 10, -10],
+      "max": [0, 30, 10]
+    }
+  ]
+}

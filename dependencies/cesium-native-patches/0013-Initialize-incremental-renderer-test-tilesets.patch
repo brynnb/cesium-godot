@@ -1,0 +1,32 @@
+From 947f8a56663d102b23b6e0cb2b0c1b7b24ca630e Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Wed, 12 Aug 2026 20:04:17 -0700
+Subject: [PATCH 2/2] Initialize incremental renderer test tilesets
+
+---
+ Cesium3DTilesSelection/test/TestTileLoadRequester.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Cesium3DTilesSelection/test/TestTileLoadRequester.cpp b/Cesium3DTilesSelection/test/TestTileLoadRequester.cpp
+index 9ab6915..4d5b59c 100644
+--- a/Cesium3DTilesSelection/test/TestTileLoadRequester.cpp
++++ b/Cesium3DTilesSelection/test/TestTileLoadRequester.cpp
+@@ -162,6 +162,7 @@ TEST_CASE("TileLoadRequester") {
+       options.mainThreadLoadingTimeLimit = 5.0;
+       auto pIncrementalTileset =
+           EllipsoidTilesetLoader::createTileset(incrementalExternals, options);
++      incrementalExternals.asyncSystem.dispatchMainThreadTasks();
+       TestTileLoadRequester requester;
+       pIncrementalTileset->registerLoadRequester(requester);
+ 
+@@ -201,6 +202,7 @@ TEST_CASE("TileLoadRequester") {
+       options.mainThreadLoadingTimeLimit = 5.0;
+       auto pIncrementalTileset =
+           EllipsoidTilesetLoader::createTileset(incrementalExternals, options);
++      incrementalExternals.asyncSystem.dispatchMainThreadTasks();
+       TestTileLoadRequester requester;
+       pIncrementalTileset->registerLoadRequester(requester);
+ 
+-- 
+2.53.0
+

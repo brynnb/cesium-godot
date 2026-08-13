@@ -1,0 +1,64 @@
+
+# Common stuff
+.vs
+.hx
+*.sln
+*.obj
+*.dll
+*.lib
+*.os
+*.so
+*.tcl
+.vscode
+*.pdb
+**/__pycache__/
+.cache/*
+
+compile_commands.json
+
+# All provisioned sources, vcpkg data, and out-of-source build products live
+# here so disk use is visible and removable with one directory.
+build/
+
+# Ignore the Cesium native directory
+cesium_godot/native
+
+# Ignore the actual godotcpp module (directory or local worktree symlink)
+godot-cpp
+
+
+
+# Ignore everything in godot3dtiles
+godot3dtiles/**
+# Except the addons subdirectory and its contents
+!godot3dtiles/addons/
+!godot3dtiles/addons/**
+
+!godot3dtiles/addons/cesium_godot/lib/
+godot3dtiles/addons/cesium_godot/lib/*
+
+!godot-html/ultralight/lib/*.lib
+!cesium_godot/third_party/litehtml/*.lib
+
+# Ignore any project import files 
+godot3dtiles/**/*.uid
+godot3dtiles/**/*.import
+
+# Headless test imports are generated beside the visible test fixture and are
+# removed by tests/run_godot_tests.sh after each run.
+tests/godot/.godot/
+tests/godot/.test-user-data/
+tests/godot/**/*.uid
+tests/godot/**/*.import
+
+# Example projects generate the same ordinary Godot import/user-data folders.
+examples/**/.godot/
+examples/**/.test-user-data/
+examples/**/*.uid
+examples/**/*.import
+
+# Ignore large files
+*.ipch
+*.vcxproj
+*.vcxproj.filters
+*.dblite

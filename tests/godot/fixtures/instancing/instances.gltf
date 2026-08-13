@@ -1,0 +1,281 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "Cesium for Godot GPU instancing test"
+  },
+  "extensionsUsed": [
+    "EXT_mesh_gpu_instancing",
+    "EXT_instance_features",
+    "EXT_mesh_features",
+    "EXT_structural_metadata",
+    "KHR_materials_unlit"
+  ],
+  "extensionsRequired": [
+    "EXT_mesh_gpu_instancing"
+  ],
+  "extensions": {
+    "EXT_structural_metadata": {
+      "schema": {
+        "id": "InstanceMetadata",
+        "classes": {
+          "tree": {
+            "properties": {
+              "height_cm": {
+                "type": "SCALAR",
+                "componentType": "UINT16"
+              }
+            }
+          }
+        }
+      },
+      "propertyTables": [
+        {
+          "name": "Instanced trees",
+          "class": "tree",
+          "count": 4,
+          "properties": {
+            "height_cm": {"values": 6}
+          }
+        }
+      ]
+    }
+  },
+  "extras": {
+    "gltfUpAxis": 2
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [0]
+    }
+  ],
+  "nodes": [
+    {
+      "translation": [10, 20, 0],
+      "children": [1, 2, 3]
+    },
+    {
+      "mesh": 0,
+      "translation": [5, 7, 0],
+      "extensions": {
+        "EXT_mesh_gpu_instancing": {
+          "attributes": {
+            "TRANSLATION": 2,
+            "ROTATION": 3,
+            "SCALE": 4,
+            "_FEATURE_ID_0": 5
+          }
+        },
+        "EXT_instance_features": {
+          "featureIds": [
+            {
+              "featureCount": 4,
+              "attribute": 0,
+              "propertyTable": 0,
+              "label": "trees"
+            },
+            {
+              "featureCount": 4,
+              "propertyTable": 0,
+              "label": "individual_trees"
+            },
+            {
+              "featureCount": 3,
+              "propertyTable": 0,
+              "label": "invalid_implicit_count"
+            },
+            {
+              "featureCount": 4,
+              "attribute": 1,
+              "propertyTable": 0,
+              "label": "missing_attribute"
+            },
+            {
+              "featureCount": 3,
+              "nullFeatureId": 3,
+              "propertyTable": 0,
+              "label": "implicit_with_null"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "mesh": 1,
+      "translation": [-25, 0, 0]
+    },
+    {
+      "mesh": 2,
+      "translation": [0, -50, 0],
+      "extensions": {
+        "EXT_mesh_gpu_instancing": {
+          "attributes": {
+            "TRANSLATION": 2,
+            "ROTATION": 3,
+            "SCALE": 4
+          }
+        }
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 1,
+          "material": 0,
+          "mode": 4
+        },
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 1,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 1,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "primitives": [
+        {
+          "extensions": {
+            "EXT_mesh_features": {
+              "featureIds": [
+                {
+                  "featureCount": 3,
+                  "propertyTable": 0,
+                  "label": "mesh_vertices"
+                }
+              ]
+            }
+          },
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 1,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "name": "InstancedUnlit",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [0.9, 0.15, 0.1, 1.0],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 1.0
+      },
+      "extensions": {
+        "KHR_materials_unlit": {}
+      }
+    }
+  ],
+  "buffers": [
+    {
+      "uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAAAgQQAAAAAAAAAAAAAAAAAAIEEAAAAAAAABAAIAAAAAAAAAAAAAAAAAAAAAAPBBAAAAAAAAAAAAAAAAAAAgQgAAAAAAAHBCAACgQQAAAAAAAAAAAAD/fwAAAACCWoJaAAAAAP9/AAAAAAAAAAD/fwAAgD8AAIA/AACAPwAAAEAAAIA/AACAPwAAgD8AAAA/AACAPwAAgL8AAIA/AACAPwIAAwFkAMgALAGQAQ==",
+      "byteLength": 184
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 36,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 36,
+      "byteLength": 6,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 44,
+      "byteLength": 48,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 92,
+      "byteLength": 32,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 124,
+      "byteLength": 48,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 172,
+      "byteLength": 4,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 176,
+      "byteLength": 8
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 3,
+      "type": "VEC3",
+      "min": [0, 0, 0],
+      "max": [10, 10, 0]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5123,
+      "count": 3,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5122,
+      "normalized": true,
+      "count": 4,
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 4,
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 5,
+      "componentType": 5121,
+      "count": 4,
+      "type": "SCALAR"
+    }
+  ]
+}

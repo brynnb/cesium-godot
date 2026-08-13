@@ -1,0 +1,182 @@
+From 57bd570d275d43c648e24e7d38f2d5cead1cbf0a Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Wed, 12 Aug 2026 08:29:56 -0700
+Subject: [PATCH 10/11] Allow decorators to consume Curl cancellation
+
+---
+ .../include/CesiumCurl/CurlAssetAccessor.h    | 11 ++++
+ CesiumCurl/src/CurlAssetAccessor.cpp          | 27 +++++++-
+ CesiumCurl/test/TestCurlAssetAccessor.cpp     | 65 +++++++++++++++++++
+ 3 files changed, 100 insertions(+), 3 deletions(-)
+
+diff --git a/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h b/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h
+index a8e2e74..97a568e 100644
+--- a/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h
++++ b/CesiumCurl/include/CesiumCurl/CurlAssetAccessor.h
+@@ -80,6 +80,17 @@ struct CESIUMCURL_API CurlAssetAccessorOptions {
+    * false if the initialization and cleanup are done elsewhere.
+    */
+   bool doGlobalInit{true};
++
++  /**
++   * @brief Whether a canceled transfer resolves with an asset request whose
++   * response is null instead of rejecting the returned future.
++   *
++   * The default preserves the historical standalone accessor behavior. This
++   * option is useful for decorators that consume cancellation themselves and
++   * must not propagate a rejection while another async continuation is being
++   * unwound.
++   */
++  bool resolveCancellationAsNullResponse{false};
+ };
+ 
+ /**
+diff --git a/CesiumCurl/src/CurlAssetAccessor.cpp b/CesiumCurl/src/CurlAssetAccessor.cpp
+index 1591957..c13fd6f 100644
+--- a/CesiumCurl/src/CurlAssetAccessor.cpp
++++ b/CesiumCurl/src/CurlAssetAccessor.cpp
+@@ -408,9 +408,6 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::getWithOptions(
+        options,
+        pThis = this->shared_from_this()]() -> std::shared_ptr<IAssetRequest> {
+         CESIUM_TRACE("CurlAssetAccessor::get");
+-        if (options.isCancellationRequested()) {
+-          throw std::runtime_error("GET request canceled before transfer");
+-        }
+         std::shared_ptr<CurlAssetRequest> pRequest =
+             std::make_shared<CurlAssetRequest>(
+                 "GET",
+@@ -418,6 +415,12 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::getWithOptions(
+                 headers,
+                 pThis->_options.requestHeaders,
+                 std::vector<std::byte>());
++        if (options.isCancellationRequested()) {
++          if (pThis->_options.resolveCancellationAsNullResponse) {
++            return pRequest;
++          }
++          throw std::runtime_error("GET request canceled before transfer");
++        }
+ 
+         CurlHandle curl(pThis.get());
+         curl_slist* list = setCommonOptions(
+@@ -449,6 +452,11 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::getWithOptions(
+           }
+           pRequest->setResponse(std::move(pResponse));
+           return pRequest;
++        } else if (
++            responseCode == CURLE_ABORTED_BY_CALLBACK &&
++            options.isCancellationRequested() &&
++            pThis->_options.resolveCancellationAsNullResponse) {
++          return pRequest;
+         } else {
+           throw std::runtime_error(fmt::format(
+               "{} `{}` failed: {}",
+@@ -508,6 +516,14 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::requestWithOptions(
+       -> std::shared_ptr<IAssetRequest> {
+         CESIUM_TRACE("CurlAssetAccessor::request");
+         if (options.isCancellationRequested()) {
++          if (pThis->_options.resolveCancellationAsNullResponse) {
++            return std::make_shared<CurlAssetRequest>(
++                verb,
++                url,
++                headers,
++                pThis->_options.requestHeaders,
++                std::move(payloadCopy));
++          }
+           throw std::runtime_error("Asset request canceled before transfer");
+         }
+ 
+@@ -587,6 +603,11 @@ Future<std::shared_ptr<IAssetRequest>> CurlAssetAccessor::requestWithOptions(
+           }
+           pRequest->setResponse(std::move(pResponse));
+           return pRequest;
++        } else if (
++            responseCode == CURLE_ABORTED_BY_CALLBACK &&
++            options.isCancellationRequested() &&
++            pThis->_options.resolveCancellationAsNullResponse) {
++          return pRequest;
+         } else {
+           throw std::runtime_error(fmt::format(
+               "{} `{}` failed: {}",
+diff --git a/CesiumCurl/test/TestCurlAssetAccessor.cpp b/CesiumCurl/test/TestCurlAssetAccessor.cpp
+index 79ad1c5..689c3b9 100644
+--- a/CesiumCurl/test/TestCurlAssetAccessor.cpp
++++ b/CesiumCurl/test/TestCurlAssetAccessor.cpp
+@@ -45,6 +45,23 @@ TEST_CASE("CurlAssetAccessor") {
+             .waitInMainThread());
+   }
+ 
++  SUBCASE("can resolve a request canceled before transfer") {
++    options.resolveCancellationAsNullResponse = true;
++    pAssetAccessor = std::make_shared<CurlAssetAccessor>(options);
++    auto pCanceled = std::make_shared<std::atomic_bool>(true);
++    CesiumAsync::AssetRequestOptions requestOptions{pCanceled};
++    std::shared_ptr<CesiumAsync::IAssetRequest> pRequest =
++        pAssetAccessor
++            ->getWithOptions(
++                asyncSystem,
++                "http://127.0.0.1:1/will-not-connect",
++                {},
++                requestOptions)
++            .waitInMainThread();
++    REQUIRE(pRequest);
++    CHECK(pRequest->response() == nullptr);
++  }
++
+   SUBCASE("can do HTTP requests") {
+     std::shared_ptr<httplib::Server> pServer =
+         std::make_shared<httplib::Server>();
+@@ -95,6 +112,54 @@ TEST_CASE("CurlAssetAccessor") {
+       cancelThread.join();
+     }
+ 
++    SUBCASE("can resolve an aborted active transfer") {
++      using namespace std::chrono_literals;
++
++      constexpr size_t responseSize = 64 * 1024 * 1024;
++      std::atomic_bool responseStarted{false};
++      pServer->Get(
++          "/test/slow-resolved.bin",
++          [&responseStarted](const httplib::Request& /*request*/,
++                             httplib::Response& response) {
++            response.set_content_provider(
++                responseSize,
++                "application/octet-stream",
++                [&responseStarted](size_t /*offset*/,
++                                   size_t length,
++                                   httplib::DataSink& sink) {
++                  responseStarted.store(true, std::memory_order_release);
++                  std::this_thread::sleep_for(2ms);
++                  const std::string bytes(length, 'x');
++                  return sink.write(bytes.data(), bytes.size());
++                });
++          });
++
++      options.resolveCancellationAsNullResponse = true;
++      pAssetAccessor = std::make_shared<CurlAssetAccessor>(options);
++      auto pCanceled = std::make_shared<std::atomic_bool>(false);
++      CesiumAsync::AssetRequestOptions requestOptions{pCanceled};
++      auto future = pAssetAccessor->getWithOptions(
++          asyncSystem,
++          fmt::format(
++              "http://127.0.0.1:{}/test/slow-resolved.bin",
++              port),
++          {},
++          requestOptions);
++
++      std::thread cancelThread([&responseStarted, pCanceled]() {
++        while (!responseStarted.load(std::memory_order_acquire)) {
++          std::this_thread::yield();
++        }
++        pCanceled->store(true, std::memory_order_relaxed);
++      });
++
++      std::shared_ptr<CesiumAsync::IAssetRequest> pRequest =
++          future.waitInMainThread();
++      cancelThread.join();
++      REQUIRE(pRequest);
++      CHECK(pRequest->response() == nullptr);
++    }
++
+     SUBCASE("GET") {
+       pServer->Get(
+           "/test/some/file.txt",

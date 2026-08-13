@@ -1,0 +1,26 @@
+{
+  "asset": {
+    "version": "1.1"
+  },
+  "geometricError": 0,
+  "root": {
+    "transform": [
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      6378137, 0, 0, 1
+    ],
+    "boundingVolume": {
+      "box": [
+        0, 0, 0,
+        10, 0, 0,
+        0, 40, 0,
+        0, 0, 20
+      ]
+    },
+    "geometricError": 0,
+    "content": {
+      "uri": "all_blend.gltf"
+    }
+  }
+}

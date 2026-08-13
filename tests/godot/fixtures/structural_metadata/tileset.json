@@ -1,0 +1,12 @@
+{
+  "asset": {"version": "1.1"},
+  "geometricError": 0,
+  "root": {
+    "boundingVolume": {
+      "box": [50, 0, 50, 50, 0, 0, 0, 1, 0, 0, 0, 50]
+    },
+    "geometricError": 0,
+    "refine": "REPLACE",
+    "content": {"uri": "defaults_and_transforms.gltf"}
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "asset": {"version": "1.1"},
+  "geometricError": 1000,
+  "root": {
+    "transform": [
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      6378137, 0, 0, 1
+    ],
+    "boundingVolume": {
+      "box": [50, 0, 50, 100, 0, 0, 0, 100, 0, 0, 0, 100]
+    },
+    "geometricError": 1000,
+    "refine": "REPLACE",
+    "children": [{
+      "boundingVolume": {
+        "box": [50, 0, 50, 75, 0, 0, 0, 60, 0, 0, 0, 75]
+      },
+      "geometricError": 0,
+      "content": {"uri": "triangle.gltf"},
+      "extras": {
+        "example": "lifecycle-material-demo",
+        "placement_id": "local-example:triangle"
+      }
+    }]
+  }
+}

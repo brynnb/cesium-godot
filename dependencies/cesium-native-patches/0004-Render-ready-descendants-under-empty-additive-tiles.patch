@@ -1,0 +1,34 @@
+From aac9addf517231388655757d511e64a2acec1234 Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Tue, 11 Aug 2026 20:41:32 -0700
+Subject: [PATCH 04/11] Render ready descendants under empty additive tiles
+
+---
+ Cesium3DTilesSelection/src/TilesetSelection.cpp | 14 +++++++++++---
+ 1 file changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/Cesium3DTilesSelection/src/TilesetSelection.cpp b/Cesium3DTilesSelection/src/TilesetSelection.cpp
+index 2ace7d0..c554fa9 100644
+--- a/Cesium3DTilesSelection/src/TilesetSelection.cpp
++++ b/Cesium3DTilesSelection/src/TilesetSelection.cpp
+@@ -977,9 +977,17 @@ TraversalDetails visitTile(
+   // of a tile that is not yet loaded, because it means we will still have a
+   // hole, and quite possibly a bigger one.
+   bool wantToKick = kickDueToNonReadyDescendant || kickDueToTileFadingIn;
+-  bool willKick = wantToKick && (traversalDetails.notYetRenderableCount >
+-                                     context.options.loadingDescendantLimit ||
+-                                 tile.isRenderable());
++
++  // An empty additive tile cannot fill the hole left by kicking its ready
++  // descendants. Treating it as a fallback causes every ready descendant to
++  // be withheld until all of its siblings finish loading, producing large
++  // all-at-once pops in hierarchies that use empty ADD tiles for grouping.
++  const bool canProvideFallback =
++      tile.getRefine() != TileRefine::Add || tile.isRenderContent();
++  bool willKick = wantToKick && canProvideFallback &&
++                  (traversalDetails.notYetRenderableCount >
++                       context.options.loadingDescendantLimit ||
++                   tile.isRenderable());
+ 
+   if (willKick) {
+     // Kick all descendants out of the render list and render this tile instead

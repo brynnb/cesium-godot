@@ -1,0 +1,218 @@
+From 3a2080baf675263b1a344b81fa05269d9754fe54 Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Wed, 12 Aug 2026 19:46:25 -0700
+Subject: [PATCH 02/11] Deduplicate shared image cache accounting
+
+---
+ .../src/TilesetContentManager.cpp             | 74 ++++++++++++++++++-
+ .../src/TilesetContentManager.h               | 15 ++++
+ .../test/TestTilesetContentManager.cpp        | 31 ++++++++
+ 3 files changed, 118 insertions(+), 2 deletions(-)
+
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.cpp b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+index 69d6324..9c60a10 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.cpp
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+@@ -39,6 +39,7 @@
+ #include <CesiumGeospatial/GlobeRectangle.h>
+ #include <CesiumGeospatial/Projection.h>
+ #include <CesiumGltf/Image.h>
++#include <CesiumImage/ImageAsset.h>
+ #include <CesiumGltfContent/GltfUtilities.h>
+ #include <CesiumRasterOverlays/ActivatedRasterOverlay.h>
+ #include <CesiumRasterOverlays/RasterOverlay.h>
+@@ -76,6 +77,7 @@
+ #include <string_view>
+ #include <tuple>
+ #include <type_traits>
++#include <unordered_set>
+ #include <utility>
+ #include <variant>
+ #include <vector>
+@@ -91,6 +93,52 @@ struct RegionAndCenter {
+   CesiumGeospatial::Cartographic center;
+ };
+ 
++int64_t computeTileNonImageDataBytes(const Tile& tile) {
++  const TileRenderContent* pRenderContent =
++      tile.getContent().getRenderContent();
++  if (!pRenderContent) {
++    return 0;
++  }
++
++  const CesiumGltf::Model& model = pRenderContent->getModel();
++  int64_t bytes = 0;
++  for (const CesiumGltf::Buffer& buffer : model.buffers) {
++    bytes += static_cast<int64_t>(buffer.cesium.data.size());
++  }
++
++  std::unordered_set<int32_t> encodedImageBufferViews;
++  for (const CesiumGltf::Image& image : model.images) {
++    if (
++        image.bufferView >= 0 &&
++        image.bufferView < static_cast<int32_t>(model.bufferViews.size()) &&
++        encodedImageBufferViews.emplace(image.bufferView).second) {
++      // The encoded bytes in this buffer view are replaced by the decoded
++      // image estimate, which is tracked separately and de-duplicated below.
++      // A malformed or unusual model may reference one image buffer view more
++      // than once; its stored bytes still exist only once.
++      bytes -= model.bufferViews[static_cast<size_t>(image.bufferView)]
++                   .byteLength;
++    }
++  }
++  return bytes;
++}
++
++std::unordered_set<const CesiumImage::ImageAsset*>
++getUniqueTileImages(const Tile& tile) {
++  std::unordered_set<const CesiumImage::ImageAsset*> result;
++  const TileRenderContent* pRenderContent =
++      tile.getContent().getRenderContent();
++  if (!pRenderContent) {
++    return result;
++  }
++  for (const CesiumGltf::Image& image : pRenderContent->getModel().images) {
++    if (image.pAsset) {
++      result.emplace(image.pAsset.get());
++    }
++  }
++  return result;
++}
++
+ struct ContentKindSetter {
+   void operator()(TileUnknownContent content) {
+     tileContent.setContentKind(content);
+@@ -667,6 +715,7 @@ TilesetContentManager::TilesetContentManager(
+       _tileLoadsInProgress{0},
+       _loadedTilesCount{0},
+       _tilesDataUsed{0},
++      _loadedSharedImageUsage{},
+       _tilesetDestroyed(false),
+       _pSharedAssetSystem(externals.pSharedAssetSystem),
+       _destructionCompletePromise{externals.asyncSystem.createPromise<void>()},
+@@ -2234,13 +2283,34 @@ void TilesetContentManager::notifyTileDoneLoading(const Tile* pTile) noexcept {
+   ++this->_loadedTilesCount;
+ 
+   if (pTile) {
+-    this->_tilesDataUsed += pTile->computeByteSize();
++    this->_tilesDataUsed += computeTileNonImageDataBytes(*pTile);
++    for (const CesiumImage::ImageAsset* pImage : getUniqueTileImages(*pTile)) {
++      auto [it, inserted] = this->_loadedSharedImageUsage.try_emplace(
++          pImage,
++          LoadedSharedImageUsage{0, pImage->getSizeBytes()});
++      ++it->second.referenceCount;
++      if (inserted) {
++        this->_tilesDataUsed += it->second.sizeBytes;
++      }
++    }
+   }
+ }
+ 
+ void TilesetContentManager::notifyTileUnloading(const Tile* pTile) noexcept {
+   if (pTile) {
+-    this->_tilesDataUsed -= pTile->computeByteSize();
++    this->_tilesDataUsed -= computeTileNonImageDataBytes(*pTile);
++    for (const CesiumImage::ImageAsset* pImage : getUniqueTileImages(*pTile)) {
++      auto it = this->_loadedSharedImageUsage.find(pImage);
++      CESIUM_ASSERT(it != this->_loadedSharedImageUsage.end());
++      if (it == this->_loadedSharedImageUsage.end()) {
++        continue;
++      }
++      CESIUM_ASSERT(it->second.referenceCount > 0);
++      if (--it->second.referenceCount == 0) {
++        this->_tilesDataUsed -= it->second.sizeBytes;
++        this->_loadedSharedImageUsage.erase(it);
++      }
++    }
+   }
+ 
+   --this->_loadedTilesCount;
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.h b/Cesium3DTilesSelection/src/TilesetContentManager.h
+index be2e1d5..7d83d68 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.h
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.h
+@@ -19,6 +19,10 @@
+ 
+ #include <vector>
+ 
++namespace CesiumImage {
++struct ImageAsset;
++}
++
+ namespace Cesium3DTilesSelection {
+ 
+ /**
+@@ -244,6 +248,17 @@ private:
+   int32_t _tileLoadsInProgress;
+   int32_t _loadedTilesCount;
+   int64_t _tilesDataUsed;
++
++  struct LoadedSharedImageUsage {
++    uint64_t referenceCount = 0;
++    int64_t sizeBytes = 0;
++  };
++
++  // ImageAsset instances may be shared by many loaded glTF models. Charge
++  // their decoded/renderer estimate once while retaining per-tile unload refs.
++  std::unordered_map<const CesiumImage::ImageAsset*, LoadedSharedImageUsage>
++      _loadedSharedImageUsage;
++
+   bool _tilesetDestroyed;
+ 
+   // Stores assets that might be shared between tiles.
+diff --git a/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp b/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp
+index 24f44ca..de21583 100644
+--- a/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp
++++ b/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp
+@@ -70,6 +70,7 @@
+ #include <optional>
+ #include <span>
+ #include <type_traits>
++#include <unordered_set>
+ #include <utility>
+ #include <variant>
+ #include <vector>
+@@ -1787,6 +1788,35 @@ TEST_CASE("Test the tileset content manager's post processing for gltf") {
+       CHECK(images.size() == 1);
+     }
+ 
++    int64_t independentlyCountedBytes = 0;
++    int64_t expectedDeduplicatedBytes = 0;
++    std::unordered_set<const CesiumImage::ImageAsset*> uniqueImages;
++    for (const auto& child : containerTile.getChildren()) {
++      independentlyCountedBytes += child.computeByteSize();
++      const CesiumGltf::Model& model =
++          child.getContent().getRenderContent()->getModel();
++      for (const CesiumGltf::Buffer& buffer : model.buffers) {
++        expectedDeduplicatedBytes +=
++            static_cast<int64_t>(buffer.cesium.data.size());
++      }
++      std::unordered_set<int32_t> encodedImageBufferViews;
++      for (const CesiumGltf::Image& image : model.images) {
++        if (
++            image.bufferView >= 0 &&
++            image.bufferView < static_cast<int32_t>(model.bufferViews.size()) &&
++            encodedImageBufferViews.emplace(image.bufferView).second) {
++          expectedDeduplicatedBytes -=
++              model.bufferViews[static_cast<size_t>(image.bufferView)]
++                  .byteLength;
++        }
++        if (image.pAsset && uniqueImages.emplace(image.pAsset.get()).second) {
++          expectedDeduplicatedBytes += image.pAsset->getSizeBytes();
++        }
++      }
++    }
++    CHECK(expectedDeduplicatedBytes < independentlyCountedBytes);
++    CHECK(pManager->getTotalDataUsed() == expectedDeduplicatedBytes);
++
+     CHECK(
+         pManager->getSharedAssetSystem()
+             ->pImage->getInactiveAssetTotalSizeBytes() == 0);
+@@ -1799,6 +1829,7 @@ TEST_CASE("Test the tileset content manager's post processing for gltf") {
+     for (auto& child : containerTile.getChildren()) {
+       pManager->unloadTileContent(child);
+     }
++    CHECK(pManager->getTotalDataUsed() == 0);
+ 
+     // Both of the assets will become inactive, and one of them will be
+     // destroyed, in order to bring the total under the limit.

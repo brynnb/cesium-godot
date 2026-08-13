@@ -1,0 +1,22 @@
+
+[configuration]
+
+entry_symbol = "test_cesium_init"
+
+compatibility_minimum = "4.6.3"
+
+[libraries]
+windows.debug.x86_64 = "res://addons/cesium_godot/lib/Godot3DTiles.windows.template_release.x86_64.dll"
+windows.release.x86_64 = "res://addons/cesium_godot/lib/Godot3DTiles.windows.template_release.x86_64.dll"
+linux.debug.x86_64 = "res://addons/cesium_godot/lib/libGodot3DTiles.linux.template_release.x86_64.so"
+linux.release.x86_64 = "res://addons/cesium_godot/lib/libGodot3DTiles.linux.template_release.x86_64.so"
+macos.debug.arm64 = "res://addons/cesium_godot/lib/libGodot3DTiles.macos.template_release.arm64.dylib"
+macos.release.arm64 = "res://addons/cesium_godot/lib/libGodot3DTiles.macos.template_release.arm64.dylib"
+
+
+[icons]
+CesiumGeoreference = "res://addons/cesium_godot/resources/icons/globe.svg"
+Cesium3DTileset = "res://addons/cesium_godot/resources/icons/box.svg"
+CesiumIonRasterOverlay = "res://addons/cesium_godot/resources/icons/image.svg"
+CesiumDynamicCam = "res://addons/cesium_godot/resources/icons/video.svg"
+CesiumOrbitCam = "res://addons/cesium_godot/resources/icons/orbit.svg"

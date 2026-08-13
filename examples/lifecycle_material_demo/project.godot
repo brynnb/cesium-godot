@@ -1,0 +1,17 @@
+[application]
+
+config/name="Cesium Lifecycle and Material Demo"
+run/main_scene="res://main.tscn"
+
+[display]
+
+window/size/viewport_width=1100
+window/size/viewport_height=700
+window/size/window_width_override=1100
+window/size/window_height_override=700
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.025, 0.035, 0.06, 1)

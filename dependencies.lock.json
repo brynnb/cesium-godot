@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "godot_compatibility": {
+    "minimum": "4.6.3",
+    "api_version": "4.6",
+    "bindings_version": "4.6.0",
+    "tested_versions": [
+      "4.6.3"
+    ]
+  },
+  "toolchain": {
+    "python": "3.11.9",
+    "scons": "4.8.1",
+    "cmake": "3.31.6",
+    "ninja": "1.12.1"
+  },
+  "dependencies": {
+    "godot_cpp": {
+      "repository": "https://github.com/godotengine/godot-cpp.git",
+      "ref": null,
+      "commit": "d7b6162249ed52796a8301d216c24ee71d68c2bf",
+      "tree": "6240da16fada4ef2b3c10bcd68490e07749cf9ad"
+    },
+    "cesium_native": {
+      "repository": "https://github.com/CesiumGS/cesium-native.git",
+      "ref": "v0.63.0",
+      "base_commit": "b4137763914820b01a42b52ee886a55b036cd6ac",
+      "base_tree": "453e4549732ba163ac8ad05c884fb5cae2fe556d",
+      "patched_tree": "d747a8b4e00f9952ec2abc9e2196a91e824175b3",
+      "patches": [
+        {
+          "path": "dependencies/cesium-native-patches/0001-Resume-renderer-preparation-across-frames.patch",
+          "sha256": "97369d9e79faa5044fe5cf1411b883e911359d3eba6543ee903a15b8f515a818"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0002-Deduplicate-shared-image-cache-accounting.patch",
+          "sha256": "279e6d166d17ec42345ce7a3bd18bf7109537d1203dcb6038821b10caf0c477e"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0003-Expose-terminal-tile-load-failures.patch",
+          "sha256": "67452b5dae6bb47f0572d1f5ef67f7ec66f28f2f29063323a42fd396ab5a1d2b"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0004-Render-ready-descendants-under-empty-additive-tiles.patch",
+          "sha256": "843e2ce8a04a3159d272d7c0c1c8009f9c850c7978f8fd4453720d8d8fd83a37"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0005-Bound-SQLite-request-cache-by-payload-bytes.patch",
+          "sha256": "46a84bc073e0ed329a66f077a55ad3e1684d127553fa7999c7efa5bea4f6bec1"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0006-Test-Cesium-tile-request-priority-ordering.patch",
+          "sha256": "1eaeba4d441397a279e50be9b7aeb1f9d6bfeba50ca82d420737388e982f5e6f"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0007-Preserve-tileset-tile-extras.patch",
+          "sha256": "b21c8ea2c9c5140f5cd27160e9884222ff0f70b6a0c01eb6717f8f8c04b42e1e"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0008-Preserve-repaired-GeoJSON-ring-warnings.patch",
+          "sha256": "9513b14b5daf112a737b4c76154df18fa7ccae0dfa7b895f9dc9c7d16496b1cb"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0009-Cancel-stale-tile-requests-across-loading-stages.patch",
+          "sha256": "05af0c5a77f89fd6b1cf6fc3e03c4baae342635344a12bf3d786a833e6511267"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0010-Allow-decorators-to-consume-Curl-cancellation.patch",
+          "sha256": "5237dde29cd161e1934a2ce9a0c04a2204fef92c76aa0fc4d10c5f2f69fce50b"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0011-Allow-decorators-to-classify-Curl-transfer-errors.patch",
+          "sha256": "7d3bca8889c890905782c38574440425c6cfd190f6d9d60e6d080e976485ac9e"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0012-Keep-cache-accounting-stable-across-glTF-modifier-updates.patch",
+          "sha256": "38bedf05df61a65eeb6275e697bcd5df220f32b1aaa80d18e531c691d52a222e"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0013-Initialize-incremental-renderer-test-tilesets.patch",
+          "sha256": "909969e40631ca8382bb8611e1d9781e47a10f48314f86e5ac7a1b25d329026a"
+        }
+      ]
+    },
+    "vcpkg": {
+      "repository": "https://github.com/microsoft/vcpkg.git",
+      "baseline": "56bb2411609227288b70117ead2c47585ba07713",
+      "tree": "e096949b3d229899c2eedb1fdf06be9bda23833a"
+    },
+    "mikktspace": {
+      "repository": "https://github.com/mmikk/MikkTSpace.git",
+      "commit": "3e895b49d05ea07e4c2133156cfa94369e19e409",
+      "files": {
+        "cesium_godot/third_party/mikktspace/mikktspace.c": "691b31b482ae0ae7eebbfe6351cd13b1c193f9284e2eba91976a59e92832cfc5",
+        "cesium_godot/third_party/mikktspace/mikktspace.h": "510dd0c4787250b7d36e524df94ce41d8c2fe27346eba8405c8923ea93d413b0"
+      }
+    },
+    "bundled_litehtml": {
+      "upstream_commit": "35ecd69d05e72b0148204a576db62c2148084193",
+      "files": {
+        "cesium_godot/third_party/litehtml/gumbo.lib": "f23e1e2fc515e5eae6b8fcc115d08fdd3fa47317c9029f170634cfd50c7d38a8",
+        "cesium_godot/third_party/litehtml/libgumbo.a": "ec6b2456655126b9b4d8b058da9dcfbacdf8be7a24effabe8aace8f4a59a73f6",
+        "cesium_godot/third_party/litehtml/liblitehtml.a": "23c1b22e174ce03d1f3b5a42b9b5274d0af60bd7c7d248148547e15d9a4e4815",
+        "cesium_godot/third_party/litehtml/litehtml.lib": "a9c1bd4acee8b659335ee612e1797be76a987481e34c070fe14e7e74a40c05f5",
+        "cesium_godot/third_party/litehtml/macos/libgumbo.a": "1972aa3bc36c2b91c381a8d95df6db4fe7aa511718d879cbfeccfa6d2ad6c601",
+        "cesium_godot/third_party/litehtml/macos/liblitehtml.a": "62a39d1ebd66b46c6c4877bd25f2a3a94c4d7ebe8c9c7f4d1ece039ca5a25c6a"
+      }
+    }
+  }
+}

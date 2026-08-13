@@ -1,0 +1,12 @@
+{
+  "asset": {"version": "2.0"},
+  "buffers": [{"uri": "missing.bin", "byteLength": 128}],
+  "images": [{"uri": "missing.png"}],
+  "textures": [{"source": 4}],
+  "materials": [{
+    "pbrMetallicRoughness": {
+      "baseColorTexture": {"index": 3}
+    }
+  }],
+  "meshes": [{"primitives": [{"attributes": {}, "material": 2}]}]
+}

@@ -1,0 +1,141 @@
+From a1b3b9b1c25808d8c2848a3eff6a095f3902cb87 Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Wed, 12 Aug 2026 19:48:06 -0700
+Subject: [PATCH 03/11] Expose terminal tile load failures
+
+---
+ .../TileLoadFailureDetails.h                  | 26 +++++++++++++++++++
+ .../Cesium3DTilesSelection/TilesetOptions.h   | 11 ++++++++
+ .../src/TilesetContentManager.cpp             | 26 +++++++++++++++++--
+ 3 files changed, 61 insertions(+), 2 deletions(-)
+ create mode 100644 Cesium3DTilesSelection/include/Cesium3DTilesSelection/TileLoadFailureDetails.h
+
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TileLoadFailureDetails.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TileLoadFailureDetails.h
+new file mode 100644
+index 0000000..c4fa2e0
+--- /dev/null
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TileLoadFailureDetails.h
+@@ -0,0 +1,26 @@
++#pragma once
++
++#include <memory>
++#include <string>
++
++namespace CesiumAsync {
++class IAssetRequest;
++}
++
++namespace Cesium3DTilesSelection {
++
++class Tile;
++
++/**
++ * Details for a terminal individual-tile content failure. Unlike a root
++ * TilesetLoadFailureDetails event, this identifies the selected tile and the
++ * completed content request when one exists. The callback is delivered on the
++ * Cesium main thread before the TileLoadResult is discarded.
++ */
++struct TileLoadFailureDetails {
++  const Tile* pTile = nullptr;
++  std::shared_ptr<CesiumAsync::IAssetRequest> pRequest = nullptr;
++  std::string message;
++};
++
++} // namespace Cesium3DTilesSelection
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetOptions.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetOptions.h
+index cd36054..cd19993 100644
+--- a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetOptions.h
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetOptions.h
+@@ -15,6 +15,7 @@
+ namespace Cesium3DTilesSelection {
+ 
+ class ITileExcluder;
++class TileLoadFailureDetails;
+ class TilesetLoadFailureDetails;
+ 
+ /**
+@@ -210,6 +211,16 @@ struct CESIUM3DTILESSELECTION_API TilesetOptions {
+    */
+   std::function<void(const TilesetLoadFailureDetails&)> loadErrorCallback;
+ 
++  /**
++   * @brief Invoked for each terminal individual-tile content failure.
++   *
++   * This is distinct from loadErrorCallback, which reports failures that
++   * prevent the root tileset or ion endpoint from loading. It is always
++   * invoked on the main thread and is not invoked for temporary RetryLater
++   * results.
++   */
++  std::function<void(const TileLoadFailureDetails&)> tileLoadErrorCallback;
++
+   /**
+    * @brief Whether to keep tiles loaded during a transition period when
+    * switching to a different LOD tile.
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.cpp b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+index 9c60a10..9f69156 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.cpp
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+@@ -15,6 +15,7 @@
+ #include <Cesium3DTilesSelection/Tile.h>
+ #include <Cesium3DTilesSelection/TileContent.h>
+ #include <Cesium3DTilesSelection/TileID.h>
++#include <Cesium3DTilesSelection/TileLoadFailureDetails.h>
+ #include <Cesium3DTilesSelection/TileLoadRequester.h>
+ #include <Cesium3DTilesSelection/TileLoadResult.h>
+ #include <Cesium3DTilesSelection/TileRefine.h>
+@@ -803,6 +804,7 @@ TilesetContentManager::createFromUrl(
+               const std::string& url = pCompletedRequest->url();
+               if (!pResponse) {
+                 TilesetContentLoaderResult<TilesetContentLoader> result;
++                result.statusCode = 0;
+                 result.errors.emplaceError(fmt::format(
+                     "Did not receive a valid response for tileset {}",
+                     url));
+@@ -812,6 +814,7 @@ TilesetContentManager::createFromUrl(
+               uint16_t statusCode = pResponse->statusCode();
+               if (statusCode != 0 && (statusCode < 200 || statusCode >= 300)) {
+                 TilesetContentLoaderResult<TilesetContentLoader> result;
++                result.statusCode = statusCode;
+                 result.errors.emplaceError(fmt::format(
+                     "Received status code {} for tileset {}",
+                     statusCode,
+@@ -1341,7 +1344,18 @@ void TilesetContentManager::loadTileContent(
+             .createResolvedFuture<TileLoadResultAndRenderResources>(
+                 {std::move(result), nullptr});
+       })
+-      .thenInMainThread([pTile, thiz](TileLoadResultAndRenderResources&& pair) {
++      .thenInMainThread([pTile,
++                         thiz,
++                         tileLoadErrorCallback =
++                             tilesetOptions.tileLoadErrorCallback](
++                            TileLoadResultAndRenderResources&& pair) {
++        if (pair.result.state == TileLoadResultState::Failed &&
++            tileLoadErrorCallback) {
++          tileLoadErrorCallback(TileLoadFailureDetails{
++              pTile.get(),
++              pair.result.pCompletedRequest,
++              "Tile content request, decoding, or renderer preparation failed"});
++        }
+         setTileContent(*pTile, std::move(pair.result), pair.pRenderResources);
+         thiz->notifyTileDoneLoading(pTile.get());
+ 
+@@ -1358,10 +1372,18 @@ void TilesetContentManager::loadTileContent(
+           }
+         }
+       })
+-      .catchInMainThread([pLogger = this->_externals.pLogger, pTile, thiz](
++      .catchInMainThread([pLogger = this->_externals.pLogger,
++                          pTile,
++                          thiz,
++                          tileLoadErrorCallback =
++                              tilesetOptions.tileLoadErrorCallback](
+                              std::exception&& e) {
+         pTile->getMappedRasterTiles().clear();
+         pTile->setState(TileLoadState::Failed);
++        if (tileLoadErrorCallback) {
++          tileLoadErrorCallback(
++              TileLoadFailureDetails{pTile.get(), nullptr, e.what()});
++        }
+         thiz->notifyTileDoneLoading(pTile.get());
+         SPDLOG_LOGGER_ERROR(
+             pLogger,

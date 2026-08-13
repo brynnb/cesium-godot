@@ -1,0 +1,135 @@
+From 9ccac4d8b2320d47dbbf9a3d5764b89a416f8be2 Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Tue, 11 Aug 2026 22:57:00 -0700
+Subject: [PATCH 07/11] Preserve tileset tile extras
+
+---
+ .../include/Cesium3DTilesSelection/Tile.h     | 22 +++++++++++++++++++
+ Cesium3DTilesSelection/src/Tile.cpp           |  2 ++
+ .../src/TilesetJsonLoader.cpp                 |  8 +++++++
+ .../test/TestTilesetJsonLoader.cpp            |  5 +++++
+ 4 files changed, 37 insertions(+)
+
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/Tile.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/Tile.h
+index e4c007d..1e5eaec 100644
+--- a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/Tile.h
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/Tile.h
+@@ -9,6 +9,7 @@
+ #include <Cesium3DTilesSelection/TileSelectionState.h>
+ #include <CesiumUtility/DoublyLinkedList.h>
+ #include <CesiumUtility/IntrusivePointer.h>
++#include <CesiumUtility/JsonValue.h>
+ 
+ #include <glm/common.hpp>
+ 
+@@ -18,6 +19,7 @@
+ #include <optional>
+ #include <span>
+ #include <string>
++#include <utility>
+ #include <vector>
+ 
+ #ifdef CESIUM_DEBUG_TILE_UNLOADING
+@@ -450,6 +452,25 @@ public:
+    */
+   void setTileID(const TileID& id) noexcept { this->_id = id; }
+ 
++  /**
++   * @brief Returns the application-defined `extras` value from this tile's
++   * entry in tileset JSON.
++   *
++   * The complete JSON value is retained so renderer integrations can preserve
++   * stable source identity and other application metadata without coupling
++   * Cesium Native to a particular schema.
++   */
++  const CesiumUtility::JsonValue& getExtras() const noexcept {
++    return this->_extras;
++  }
++
++  /**
++   * @brief Sets the application-defined `extras` value from tileset JSON.
++   */
++  void setExtras(CesiumUtility::JsonValue extras) {
++    this->_extras = std::move(extras);
++  }
++
+   /**
+    * @brief Returns the {@link BoundingVolume} of the renderable content of this
+    * tile.
+@@ -690,6 +711,7 @@ private:
+   // Properties from tileset.json.
+   // These are immutable after the tile leaves TileState::Unloaded.
+   TileID _id;
++  CesiumUtility::JsonValue _extras;
+   BoundingVolume _boundingVolume;
+   std::optional<BoundingVolume> _viewerRequestVolume;
+   std::optional<BoundingVolume> _contentBoundingVolume;
+diff --git a/Cesium3DTilesSelection/src/Tile.cpp b/Cesium3DTilesSelection/src/Tile.cpp
+index 36a05b3..015a039 100644
+--- a/Cesium3DTilesSelection/src/Tile.cpp
++++ b/Cesium3DTilesSelection/src/Tile.cpp
+@@ -91,6 +91,7 @@ Tile::Tile(
+     : _pParent(nullptr),
+       _children(),
+       _id(tileID),
++      _extras(),
+       _boundingVolume(OrientedBoundingBox(glm::dvec3(), glm::dmat3())),
+       _viewerRequestVolume(),
+       _contentBoundingVolume(),
+@@ -114,6 +115,7 @@ Tile::Tile(Tile&& rhs) noexcept
+     : _pParent(nullptr),
+       _children(std::move(rhs._children)),
+       _id(std::move(rhs._id)),
++      _extras(std::move(rhs._extras)),
+       _boundingVolume(rhs._boundingVolume),
+       _viewerRequestVolume(rhs._viewerRequestVolume),
+       _contentBoundingVolume(rhs._contentBoundingVolume),
+diff --git a/Cesium3DTilesSelection/src/TilesetJsonLoader.cpp b/Cesium3DTilesSelection/src/TilesetJsonLoader.cpp
+index 8cbb37a..cfe8461 100644
+--- a/Cesium3DTilesSelection/src/TilesetJsonLoader.cpp
++++ b/Cesium3DTilesSelection/src/TilesetJsonLoader.cpp
+@@ -572,6 +572,12 @@ std::optional<Tile> parseTileJsonRecursively(
+       glm::max(scale.x, glm::max(scale.y, scale.z));
+   double tileGeometricError = geometricError.value() * maxScaleComponent;
+ 
++  CesiumUtility::JsonValue tileExtras;
++  const auto extrasIt = tileJson.FindMember("extras");
++  if (extrasIt != tileJson.MemberEnd()) {
++    tileExtras = CesiumUtility::JsonHelpers::toJsonValue(extrasIt->value);
++  }
++
+   // parse refinement
+   TileRefine tileRefine = parentRefine;
+   const auto refineIt = tileJson.FindMember("refine");
+@@ -670,6 +676,7 @@ std::optional<Tile> parseTileJsonRecursively(
+     tile.setViewerRequestVolume(tileViewerRequestVolume);
+     tile.setGeometricError(tileGeometricError);
+     tile.setRefine(tileRefine);
++    tile.setExtras(std::move(tileExtras));
+ 
+     parseImplicitTileset(*implicitTilingJson, contentUri, tile, currentLoader);
+ 
+@@ -720,6 +727,7 @@ std::optional<Tile> parseTileJsonRecursively(
+   tile.setViewerRequestVolume(tileViewerRequestVolume);
+   tile.setGeometricError(tileGeometricError);
+   tile.setRefine(tileRefine);
++  tile.setExtras(std::move(tileExtras));
+   tile.setContentBoundingVolume(tileContentBoundingVolume);
+   tile.createChildTiles(std::move(childTiles));
+ 
+diff --git a/Cesium3DTilesSelection/test/TestTilesetJsonLoader.cpp b/Cesium3DTilesSelection/test/TestTilesetJsonLoader.cpp
+index a8bd43f..485e8aa 100644
+--- a/Cesium3DTilesSelection/test/TestTilesetJsonLoader.cpp
++++ b/Cesium3DTilesSelection/test/TestTilesetJsonLoader.cpp
+@@ -208,6 +208,11 @@ TEST_CASE("Test creating tileset json loader") {
+     CHECK(std::get<std::string>(children[1].getTileID()) == "lr.b3dm");
+     CHECK(std::holds_alternative<CesiumGeospatial::BoundingRegion>(
+         children[1].getBoundingVolume()));
++    const CesiumUtility::JsonValue& childExtras = children[1].getExtras();
++    REQUIRE(childExtras.isObject());
++    const CesiumUtility::JsonValue* pId = childExtras.getValuePtrForKey("id");
++    REQUIRE(pId);
++    CHECK(pId->getStringOrDefault("") == "Special Tile");
+ 
+     CHECK(children[2].getParent() == pRootTile);
+     CHECK(children[2].getChildren().size() == 0);
