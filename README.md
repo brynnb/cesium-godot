@@ -1,9 +1,9 @@
 # Cesium for Godot
 
-Cesium for Godot is a community-maintained Godot 4 GDExtension for streaming,
+Cesium for Godot is an alpha-stage unofficial Godot 4 GDExtension for streaming,
 rendering, and interacting with [3D Tiles](https://www.ogc.org/standard/3dtiles/).
 It is built on [Cesium Native](https://github.com/CesiumGS/cesium-native) and is
-focused on a capable, reusable runtime integration for Godot.
+focused on a capable, reusable runtime integration for Godot. It is largely untested as of the time of this writing and will hopefully soon have much more development, testing, and bug fixing. 
 
 This project builds on
 [3D Tiles for Godot](https://github.com/Battle-Road-Labs/3D-Tiles-For-Godot)
@@ -11,7 +11,7 @@ and adapts architecture and runtime behavior from
 [Cesium for Unreal](https://github.com/CesiumGS/cesium-unreal). We are grateful
 to both projects and their contributors for the foundations of this work.
 
-Cesium for Godot is an independent community project. It is not an official
+Cesium for Godot is an independent project. It is not an official
 Cesium GS or Godot Engine product and is not endorsed by either organization.
 
 ![3D Tiles rendered in Godot](readme_resources/NYC_Screenshot.png)
