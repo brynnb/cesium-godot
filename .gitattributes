@@ -2,3 +2,8 @@
 # space-terminated signature separator by design. Treat them as patch data
 # instead of reporting those required bytes as source whitespace errors.
 dependencies/cesium-native-patches/*.patch -whitespace
+
+# These source files are hash-locked inputs to the extension build. Keep their
+# checkout bytes stable when Git's Windows autocrlf setting is enabled.
+cesium_godot/third_party/mikktspace/mikktspace.c text eol=lf
+cesium_godot/third_party/mikktspace/mikktspace.h text eol=lf

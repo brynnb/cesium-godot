@@ -50,6 +50,11 @@ class DependencyLockTests(unittest.TestCase):
             self.assertTrue(path.is_file(), relative_path)
             self.assertEqual(sha256(path), expected_hash, relative_path)
 
+    def test_hash_locked_text_inputs_have_stable_checkout_line_endings(self) -> None:
+        attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+        for relative_path in self.lock["dependencies"]["mikktspace"]["files"]:
+            self.assertIn(f"{relative_path} text eol=lf", attributes)
+
     def test_native_patch_series_is_ordered_and_complete(self) -> None:
         patches = self.lock["dependencies"]["cesium_native"]["patches"]
         self.assertEqual(len(patches), 13)
