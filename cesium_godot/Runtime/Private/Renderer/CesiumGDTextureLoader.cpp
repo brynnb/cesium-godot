@@ -190,6 +190,20 @@ Ref<ImageTexture> CesiumGDTextureLoader::load_image_texture(
 	return texture;
 }
 
+uint64_t CesiumGDTextureLoader::release_pixel_data(
+	CesiumImage::ImageAsset& image
+) {
+	const uint64_t releasedBytes =
+		static_cast<uint64_t>(image.pixelData.size());
+	if (releasedBytes == 0) {
+		return 0;
+	}
+	image.sizeBytes = static_cast<int64_t>(releasedBytes);
+	std::vector<std::byte>().swap(image.pixelData);
+	std::vector<CesiumImage::ImageAssetMipPosition>().swap(image.mipPositions);
+	return releasedBytes;
+}
+
 CesiumImage::SupportedGpuCompressedPixelFormats
 CesiumGDTextureLoader::get_supported_gpu_compressed_pixel_formats()
 {

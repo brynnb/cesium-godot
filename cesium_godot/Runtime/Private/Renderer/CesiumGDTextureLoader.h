@@ -28,6 +28,9 @@ public:
 		const CesiumImage::ImageAsset& image,
 		bool generateMipMapsIfMissing
 	);
+	// Preserve Native cache accounting while releasing the CPU upload source.
+	// This mirrors Cesium for Unreal's post-upload ImageAsset cleanup.
+	static uint64_t release_pixel_data(CesiumImage::ImageAsset& image);
 	static CesiumImage::SupportedGpuCompressedPixelFormats
 	get_supported_gpu_compressed_pixel_formats();
 private:

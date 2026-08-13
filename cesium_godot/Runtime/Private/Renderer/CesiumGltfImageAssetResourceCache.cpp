@@ -6,8 +6,21 @@
 #include "Runtime/Private/Renderer/CesiumGDTextureLoader.h"
 
 #include <algorithm>
+#include <mutex>
 
 namespace {
+struct CesiumGltfImageAssetGodotExtension {
+	static inline constexpr const char* TypeName =
+		"CesiumGltfImageAssetGodotExtension";
+	static inline constexpr const char* ExtensionName =
+		"PRIVATE_ImageAsset_Godot";
+
+	std::shared_ptr<CesiumGltfSharedImageResource> resource;
+};
+
+std::mutex image_resource_mutex;
+std::vector<std::weak_ptr<CesiumGltfSharedImageResource>> all_image_resources;
+
 void fingerprint_bytes(
 	CesiumGltfImageContentFingerprint& result,
 	const void* source,
@@ -33,16 +46,17 @@ void fingerprint_value(
 }
 
 bool has_identical_texture_content(
-	const CesiumImage::ImageAsset& left,
+	const CesiumGltfSharedImageResource& left,
+	const CesiumGltfImageContentFingerprint& contentFingerprint,
 	const CesiumImage::ImageAsset& right
 ) {
 	if (
+		left.contentFingerprint != contentFingerprint ||
 		left.width != right.width || left.height != right.height ||
 		left.channels != right.channels ||
 		left.bytesPerChannel != right.bytesPerChannel ||
 		left.compressedPixelFormat != right.compressedPixelFormat ||
-		left.mipPositions.size() != right.mipPositions.size() ||
-		left.pixelData != right.pixelData
+		left.mipPositions.size() != right.mipPositions.size()
 	) {
 		return false;
 	}
@@ -58,6 +72,7 @@ bool has_identical_texture_content(
 	}
 	return true;
 }
+
 }
 
 size_t CesiumGltfImageContentFingerprintHash::operator()(
@@ -74,6 +89,7 @@ CesiumGltfImageContentFingerprint
 CesiumGltfImageAssetResourceCache::fingerprint(
 	const CesiumImage::ImageAsset& imageAsset
 ) {
+	std::scoped_lock lock(image_resource_mutex);
 	CesiumGltfImageContentFingerprint result;
 	result.first = UINT64_C(1469598103934665603);
 	result.second = UINT64_C(1099511628211);
@@ -120,6 +136,18 @@ CesiumGltfImageAssetResourceCache::~CesiumGltfImageAssetResourceCache() {
 	this->release_generation_resources();
 }
 
+void CesiumGltfImageAssetResourceCache::release_all_renderer_resources() {
+	std::scoped_lock lock(image_resource_mutex);
+	for (const auto& candidate : all_image_resources) {
+		const std::shared_ptr<CesiumGltfSharedImageResource> resource =
+			candidate.lock();
+		if (resource != nullptr) {
+			resource->texture.unref();
+		}
+	}
+	all_image_resources.clear();
+}
+
 void CesiumGltfImageAssetResourceCache::release_generation_resources() {
 	if (this->m_statistics != nullptr && !this->m_shaders.empty()) {
 		this->m_statistics->liveSharedShaderCount.fetch_sub(
@@ -134,6 +162,7 @@ std::shared_ptr<CesiumGltfSharedImageResource>
 CesiumGltfImageAssetResourceCache::acquire(
 	const CesiumUtility::IntrusivePointer<CesiumImage::ImageAsset>& imageAsset,
 	const CesiumGltfImageContentFingerprint& contentFingerprint,
+	bool preserveCpuPixelData,
 	Error* error
 ) {
 	ERR_FAIL_NULL_V(error, nullptr);
@@ -142,21 +171,30 @@ CesiumGltfImageAssetResourceCache::acquire(
 		return nullptr;
 	}
 
+	std::scoped_lock lock(image_resource_mutex);
 	this->prune_expired();
-	auto existing = this->m_resources.find(imageAsset.get());
-	if (existing != this->m_resources.end()) {
-		std::shared_ptr<CesiumGltfSharedImageResource> resource =
-			existing->second.lock();
-		if (resource != nullptr) {
-			if (this->m_statistics != nullptr) {
-				this->m_statistics->sharedTextureCacheHitCount.fetch_add(
-					1,
-					std::memory_order_relaxed
-				);
+	auto* extension = imageAsset->getExtension<
+		CesiumGltfImageAssetGodotExtension>();
+	if (extension != nullptr && extension->resource != nullptr) {
+		auto& localResources =
+			this->m_contentResources[extension->resource->contentFingerprint];
+		const bool alreadyRegistered = std::any_of(
+			localResources.begin(),
+			localResources.end(),
+			[&extension](const auto& candidate) {
+				return candidate.lock() == extension->resource;
 			}
-			return resource;
+		);
+		if (!alreadyRegistered) {
+			localResources.emplace_back(extension->resource);
 		}
-		this->m_resources.erase(existing);
+		if (this->m_statistics != nullptr) {
+			this->m_statistics->sharedTextureCacheHitCount.fetch_add(
+				1,
+				std::memory_order_relaxed
+			);
+		}
+		return extension->resource;
 	}
 	auto content = this->m_contentResources.find(contentFingerprint);
 	if (content != this->m_contentResources.end()) {
@@ -168,12 +206,32 @@ CesiumGltfImageAssetResourceCache::acquire(
 				candidate = content->second.erase(candidate);
 				continue;
 			}
-			if (has_identical_texture_content(*resource->imageAsset, *imageAsset)) {
+			if (has_identical_texture_content(
+				*resource,
+				contentFingerprint,
+				*imageAsset
+			)) {
+				auto& imageExtension = imageAsset->addExtension<
+					CesiumGltfImageAssetGodotExtension>();
+				imageExtension.resource = resource;
+				const uint64_t releasedBytes = preserveCpuPixelData
+					? 0
+					: CesiumGDTextureLoader::release_pixel_data(*imageAsset);
 				if (this->m_statistics != nullptr) {
 					this->m_statistics->sharedTextureCacheHitCount.fetch_add(
 						1,
 						std::memory_order_relaxed
 					);
+					if (releasedBytes > 0) {
+						this->m_statistics->releasedCpuTextureCount.fetch_add(
+							1,
+							std::memory_order_relaxed
+						);
+						this->m_statistics->releasedCpuTextureBytes.fetch_add(
+							releasedBytes,
+							std::memory_order_relaxed
+						);
+					}
 				}
 				return resource;
 			}
@@ -194,14 +252,26 @@ CesiumGltfImageAssetResourceCache::acquire(
 	}
 
 	auto resource = std::make_shared<CesiumGltfSharedImageResource>();
-	resource->imageAsset = imageAsset;
 	resource->texture = texture;
+	resource->contentFingerprint = contentFingerprint;
+	resource->width = imageAsset->width;
+	resource->height = imageAsset->height;
+	resource->channels = imageAsset->channels;
+	resource->bytesPerChannel = imageAsset->bytesPerChannel;
+	resource->compressedPixelFormat = imageAsset->compressedPixelFormat;
+	resource->mipPositions = imageAsset->mipPositions;
 	resource->sizeBytes = static_cast<uint64_t>(std::max<int64_t>(
 		0,
 		imageAsset->getSizeBytes()
 	));
-	this->m_resources.emplace(imageAsset.get(), resource);
+	auto& imageExtension = imageAsset->addExtension<
+		CesiumGltfImageAssetGodotExtension>();
+	imageExtension.resource = resource;
 	this->m_contentResources[contentFingerprint].emplace_back(resource);
+	all_image_resources.emplace_back(resource);
+	const uint64_t releasedBytes = preserveCpuPixelData
+		? 0
+		: CesiumGDTextureLoader::release_pixel_data(*imageAsset);
 
 	if (this->m_statistics != nullptr) {
 		this->m_statistics->sharedTextureCacheMissCount.fetch_add(
@@ -230,6 +300,16 @@ CesiumGltfImageAssetResourceCache::acquire(
 		// increment succeeds. This also keeps an allocation failure while adding
 		// the weak cache entry from underflowing otherwise untouched counters.
 		resource->statistics = this->m_statistics;
+		if (releasedBytes > 0) {
+			this->m_statistics->releasedCpuTextureCount.fetch_add(
+				1,
+				std::memory_order_relaxed
+			);
+			this->m_statistics->releasedCpuTextureBytes.fetch_add(
+				releasedBytes,
+				std::memory_order_relaxed
+			);
+		}
 	}
 	return resource;
 }
@@ -273,13 +353,6 @@ Ref<Shader> CesiumGltfImageAssetResourceCache::acquire_shader(
 }
 
 void CesiumGltfImageAssetResourceCache::prune_expired() {
-	for (auto it = this->m_resources.begin(); it != this->m_resources.end();) {
-		if (it->second.expired()) {
-			it = this->m_resources.erase(it);
-		} else {
-			++it;
-		}
-	}
 	for (auto content = this->m_contentResources.begin();
 		 content != this->m_contentResources.end();) {
 		auto& resources = content->second;

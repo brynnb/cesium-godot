@@ -34,6 +34,7 @@
 #include "Runtime/Public/Metadata/CesiumPropertyTextureProperty.h"
 #include "Runtime/Public/Metadata/CesiumPropertyTexture.h"
 #include "Runtime/Public/Metadata/CesiumPrimitiveMetadata.h"
+#include "Runtime/Private/Renderer/CesiumGltfImageAssetResourceCache.h"
 #include "Godot/Nodes/CesiumGDCreditSystem.h"
 #include "Runtime/Public/Credits/CesiumCredit.h"
 #include "Godot/Nodes/CesiumGDTileset.h"
@@ -147,7 +148,9 @@ void initialize_cesium_godot_module(ModuleInitializationLevel p_level) {
 }
 
 void uninitialize_cesium_godot_module(ModuleInitializationLevel p_level) {
-	//Hey there, hello, we don't do anything here actually
+	if (p_level != ModuleInitializationLevel::MODULE_INITIALIZATION_LEVEL_SCENE)
+		return;
+	CesiumGltfImageAssetResourceCache::release_all_renderer_resources();
 }
 
 extern "C" {

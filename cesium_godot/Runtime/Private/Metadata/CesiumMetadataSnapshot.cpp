@@ -393,6 +393,9 @@ create_cesium_metadata_snapshot(const CesiumGltf::Model& model) {
 					}
 					const CesiumImage::ImageAsset* image =
 						propertyView.getImage();
+					if (image != nullptr) {
+						result->cpuImageAssets.emplace(image);
+					}
 					if (
 						image != nullptr &&
 						countedTextureImages.emplace(image).second

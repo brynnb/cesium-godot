@@ -42,6 +42,7 @@ using namespace godot;
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 class CesiumGltfMaterialLoader;
@@ -120,6 +121,7 @@ struct CesiumGDPreparedModel {
 		const CesiumImage::ImageAsset*,
 		CesiumGltfImageContentFingerprint
 	> imageContentFingerprints;
+	std::unordered_set<const CesiumImage::ImageAsset*> cpuImageAssets;
 	std::shared_ptr<CesiumGltfModelResourceCache> sharedModelCache;
 	std::shared_ptr<CesiumGltfSharedModelResource> sharedModelResource;
 	std::string contentKey;

@@ -2873,6 +2873,12 @@ Dictionary Cesium3DTileset::get_streaming_statistics() const {
 				std::memory_order_relaxed
 			)
 		);
+		result["released_cpu_texture_count"] = static_cast<int64_t>(
+			statistics->releasedCpuTextureCount.load(std::memory_order_relaxed)
+		);
+		result["released_cpu_texture_bytes"] = static_cast<int64_t>(
+			statistics->releasedCpuTextureBytes.load(std::memory_order_relaxed)
+		);
 		result["shared_shader_cache_hits"] = static_cast<int64_t>(
 			statistics->sharedShaderCacheHitCount.load(
 				std::memory_order_relaxed
