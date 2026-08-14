@@ -343,6 +343,12 @@ func _check_initial_order() -> bool:
 
 
 func _check_streaming_statistics() -> bool:
+	if not is_zero_approx(float(tileset.tile_cache_unload_time_limit_ms)):
+		_fail(
+			"Cache eviction must drain by default so maximum_cached_bytes " +
+			"remains enforceable"
+		)
+		return false
 	tileset.main_thread_loading_time_limit_ms = 3.5
 	tileset.tile_cache_unload_time_limit_ms = 2.5
 	var statistics := tileset.get_streaming_statistics()
