@@ -1,60 +1,99 @@
-# Occlusion culling boundary
+# Cesium request-time occlusion
 
-Cesium for Godot intentionally does not enable Cesium Native's tile-request
-occlusion culling on Godot 4.6.3. This is an engine API boundary, not
-an omitted null implementation.
+Cesium for Godot can use Godot's existing Embree-backed CPU occlusion buffer
+to avoid requesting and preparing 3D Tiles hidden behind authored
+`OccluderInstance3D` geometry. This is request-time culling: it can prevent
+work before a hidden tile is downloaded, decoded, uploaded, or instantiated.
 
-## Two different jobs
+## Engine requirement and fallback
 
-Cesium Native asks a renderer whether an unloaded tile's bounding volume is
-occluded before it commits network, decode, and realization work. Its
-`TileOcclusionRendererProxyPool` therefore needs a stable three-state result for
-arbitrary bounds: unavailable, visible, or occluded.
+Stock Godot 4.6.3 does not expose arbitrary-bound results from its internal
+occlusion buffer. The integration therefore uses one small, generic engine API:
 
-Godot's built-in occlusion culling instead operates on already-realized scene
-instances against explicitly authored `OccluderInstance3D` geometry. It can
-reduce draw work after content exists, but it does not answer the public
-pre-load bounding-volume query Cesium needs. Godot also documents that this
-CPU system has a cost and is generally not useful for large open scenes with
-few blockers—the common Vanguard exterior case.
+```gdscript
+RenderingServer.viewport_query_occlusion(viewport_rid, bounds)
+```
 
-## Public API audit
+It accepts an array of world-space `AABB` values and returns one byte per
+entry: `0` unavailable, `1` visible, or `2` occluded. The engine implementation
+reuses the most recently completed viewport HZ buffer; it does not render a
+second depth pass and does not perform GPU readback.
 
-The supported Godot 4.6 API and 4.6.3 runtime were checked:
+The plugin detects this method at runtime. On an ordinary Godot build it keeps
+Cesium Native occlusion disabled and otherwise behaves normally. This allows
+the same addon package to support both stock and patched engines safely.
 
-- [Godot 4.6 RenderingServer](https://docs.godotengine.org/en/4.6/classes/class_renderingserver.html)
-- [Godot 4.6 RenderingDevice](https://docs.godotengine.org/en/4.6/classes/class_renderingdevice.html)
-- [Godot 4.6 occlusion-culling guide](https://docs.godotengine.org/en/4.6/tutorials/3d/occlusion_culling.html)
+The current isolated Godot 4.6.3 implementation is on branch
+`feature/arbitrary-bound-occlusion-query` in
+`/home/brynn/Code/godot-vanguard-occlusion`. Build it with:
 
-`RenderingServer` describes renderer internals as opaque. Its public occlusion
-surface configures viewports, authored occluders, and instance participation;
-it does not return an occlusion state for an arbitrary bound. `RenderingDevice`
-can build independent low-level render passes, but exposes neither Godot's
-scene depth/occlusion result nor a portable occlusion-query primitive in 4.6.
-A plugin-owned depth renderer would duplicate scene submission, introduce
-backend-specific synchronization and readback, fail in headless/Compatibility
-renderers, and no longer be the reusable Godot-native bridge this project is
-intended to provide.
+```bash
+cd /home/brynn/Code/godot-vanguard-occlusion
+scons platform=linuxbsd target=editor dev_build=yes -j6
+```
 
-Cesium for Unreal can implement this feature because an Unreal view extension
-can ask renderer internals for a primitive's occlusion state. The equivalent
-hook is not public in Godot.
+This creates `bin/godot.linuxbsd.editor.dev.x86_64`; it does not replace the
+system `godot4` command.
 
-## Runtime contract
+## Runtime design
 
-The plugin leaves Native `enableOcclusionCulling` false and reports:
+Set `occlusion_culling_enabled` on a `Cesium3DTileset`. The adapter:
 
-- `occlusion_culling_available = false`;
-- `occlusion_culling_enabled = false`;
-- `occlusion_culling_backend = "unavailable"`;
-- `occlusion_culling_unavailable_reason` with the API limitation.
+1. lets Cesium Native assign bounded proxy objects during the real camera
+   traversal;
+2. snapshots all requested tile bounds in one batch;
+3. submits that batch through `RenderingServer.call_on_render_thread`;
+4. consumes the completed results on a later main-thread frame; and
+5. feeds the three-state results back into Native's next traversal.
 
-Returning “unavailable” from fake Native proxies indefinitely would stall
-refinement; returning “visible” would add overhead without culling anything.
-Disabling the option is the safe behavior.
+There is no render-thread synchronization per tile. Results are cached briefly
+by Native tile identity so the separately weighted movement-prediction view can
+reuse the proxy pool without erasing the real camera's visibility results.
+Unrecognized or unavailable results are conservatively treated as visible, so
+renderer unavailability cannot strand refinement.
 
-Applications may still enable Godot's own post-load occlusion culling and
-author occluders when their scene benefits. That remains independent of Cesium
-streaming and does not change these diagnostics. Revisit this decision if Godot
-adds a public, asynchronous per-bound visibility result that works across the
-supported renderers and extension ABI.
+`delay_refinement_for_occlusion` is off by default. Turning it on permits
+Native to wait briefly for the first result for a new bound, which may reduce
+hidden requests but can add a frame of latency. `occlusion_pool_size` bounds
+the number of tile proxies and defaults to 1000.
+
+Godot's occlusion system still needs useful authored occluders. It is most
+valuable around building exteriors, cliffs, and other large blockers; it is
+unlikely to help much in open terrain or while flying above the world.
+
+Cesium Native applies request-time occlusion when deciding whether to refine a
+hierarchy branch. A standalone leaf object has nothing below it to suppress and
+is therefore not itself a useful preload-occlusion boundary. Object tilesets
+should group interiors and other potentially hidden detail beneath tight
+refinable parent bounds. The end-to-end fixture proves that a visible branch
+loads while a sibling branch behind an authored wall never requests its leaf.
+
+## Diagnostics
+
+`get_streaming_statistics()` reports:
+
+- `occlusion_culling_available`;
+- `occlusion_culling_enabled`;
+- `occlusion_culling_backend` (`godot_embree_hzbuffer` when available);
+- `occlusion_culling_unavailable_reason`;
+- query generation, submitted-bound count, in-flight state, and pool size;
+- visible, occluded, and unavailable result counts from the latest batch;
+- `tiles_occluded` and `tiles_waiting_for_occlusion_results`.
+
+The engine HZ-buffer math has a focused native unit test.
+`tests/godot/occlusion_bridge_test.gd` covers addon properties, runtime feature
+detection, stock-engine fallback, and the batch API contract.
+`occlusion_engine_e2e_test.gd` verifies visible and hidden bounds against an
+actual authored wall, while `occlusion_tileset_e2e_test.gd` proves that the
+hidden Cesium hierarchy branch does not load.
+
+On Linux, both render-capable tests can run without opening a window on the
+user's desktop:
+
+```bash
+cd /home/brynn/Code/cesium-godot-occlusion
+CESIUM_TEST_REQUIRE_OCCLUSION=1 xvfb-run -a \
+  /home/brynn/Code/godot-vanguard-occlusion/bin/godot.linuxbsd.editor.dev.x86_64 \
+  --rendering-method gl_compatibility --path tests/godot \
+  --script res://occlusion_tileset_e2e_test.gd
+```

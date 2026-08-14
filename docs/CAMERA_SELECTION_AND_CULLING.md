@@ -63,12 +63,11 @@ reported separately. It also reports:
 - tiles waiting for occlusion information;
 - the maximum hierarchy depth visited.
 
-Cesium Native request-time occlusion is intentionally unavailable on the
-supported Godot 4.6.3 public API. Godot's CPU occlusion system applies to
-already-realized instances and does not expose the asynchronous per-bound
-result Native requires before loading. The plugin therefore disables Native
-occlusion rather than attaching a fake proxy pool, and reports availability,
-backend, and reason diagnostics. See [the API audit](OCCLUSION_CULLING.md).
+Cesium Native request-time occlusion is available when running the optional
+custom Godot build that exposes its existing Embree HZ-buffer result for a
+batch of world-space bounds. The addon detects the method dynamically and
+safely disables Native occlusion on stock Godot 4.6.3. See the
+[occlusion bridge guide](OCCLUSION_CULLING.md).
 
 `tests/godot/frustum_culling_test.gd` streams a real three-leaf tileset and
 proves off-screen suppression, live turn-around reuse, culling disablement,

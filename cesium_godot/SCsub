@@ -59,6 +59,7 @@ sources = [
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Diagnostics/CesiumTileDebugState.cpp",
 	cesium_build_utils.get_root_dir() + "/Runtime/Private/TileSelection/CesiumTileExclusionContext.cpp",
 	cesium_build_utils.get_root_dir() + "/Runtime/Private/TileSelection/CesiumTileExcluderAdapter.cpp",
+	cesium_build_utils.get_root_dir() + "/Runtime/Private/TileSelection/CesiumGodotOcclusionProxy.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Diagnostics/CesiumLoadFailureQueue.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumGodotMetadataConversions.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Metadata/CesiumMetadataSnapshot.cpp",

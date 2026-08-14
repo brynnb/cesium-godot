@@ -64,6 +64,7 @@
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/window.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
+#include <godot_cpp/classes/rendering_server.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/collision_shape3d.hpp>
 #include <godot_cpp/core/error_macros.hpp>
@@ -77,6 +78,7 @@ using namespace godot;
 #include "scene/main/viewport.h"
 #include "scene/main/window.h"
 #include "core/config/project_settings.h"
+#include "servers/rendering_server.h"
 #include "core/io/dir_access.h"
 #include "scene/3d/physics/collision_shape_3d.h"
 #include "core/error/error_macros.h"
@@ -93,6 +95,7 @@ using namespace godot;
 #include "Utils/CesiumMathUtils.h"
 #include "Runtime/Private/Networking/NetworkAssetAccessor.h"
 #include "Runtime/Private/Renderer/GodotPrepareRenderResources.h"
+#include "Runtime/Private/TileSelection/CesiumGodotOcclusionProxy.h"
 #include "Cesium3DTilesContent/registerAllTileContentTypes.h"
 #include "Utils/CesiumVariantHash.h"
 #include <glm/gtc/quaternion.hpp>
@@ -140,6 +143,8 @@ constexpr const char* PRELOAD_SIBLINGS_DESC = "Indicates whether the siblings of
 constexpr const char* LOADING_DESCENDANT_LIMIT_DESC = "The number of loading descendant tiles that is considered \"too many\".\nIf a tile has too many loading descendants, that tile will be loaded and rendered before any of its descendants are loaded and rendered. \nThis means more feedback for the user that something is happening at the cost of a longer overall load time.\nSetting this to 0 will cause each tile level to be loaded successively, significantly increasing load time.\nSetting it to a large number (e.g. 1000) will minimize the number of tiles that are loaded but tend to make detail appear all at once after a long wait.";
 constexpr const char* FORBID_HOLES_DESC = "Never render a tileset with missing tiles.\n\nWhen true, the tileset will guarantee that the tileset will never be rendered with holes in place of tiles that are not yet loaded.\nIt does this by refusing to refine a parent tile until all of its child tiles are ready to render.\nThus, when the camera moves, we will always have something - even if it's low resolution - to render any part of the tileset that becomes visible.\nWhen false, overall loading will be faster, but newly-visible parts of the tileset may initially be blank.";
 constexpr const char* FRUSTUM_CULLING_DESC = "Cull 3D Tiles outside the active Godot camera frustum. The adapter preserves perspective KEEP_WIDTH / KEEP_HEIGHT, orthographic, and asymmetric-frustum projection semantics.";
+constexpr const char* OCCLUSION_CULLING_DESC = "Use Cesium Native's tile occlusion traversal with the previous completed Godot Embree HZ buffer. This requires the custom Godot viewport_query_occlusion bridge; standard Godot builds safely report the bridge as unavailable.";
+constexpr const char* DELAY_REFINEMENT_FOR_OCCLUSION_DESC = "Wait briefly for a new tile's first occlusion result before refining it. Disabled by default so a missing or delayed renderer result can never stall visible loading.";
 constexpr const char* FOG_CULLING_DESC = "Use Cesium Native's ellipsoid-height fog table to cull fully obscured distant tiles. This is independent of Godot Environment fog and is usually inappropriate for a local-Cartesian world.";
 constexpr const char* ENFORCE_CULLED_SSE_DESC = "When a culling stage is disabled, continue refining tiles that it would otherwise cull until culled_screen_space_error is reached.";
 constexpr const char* RENDER_TILES_UNDER_CAMERA_DESC = "Keep region-bounded terrain directly beneath the camera available even outside its view frustum. Cesium Native applies this only to geographic region bounds.";
@@ -716,6 +721,45 @@ void Cesium3DTileset::set_frustum_culling_enabled(bool enabled) {
 
 bool Cesium3DTileset::get_frustum_culling_enabled() const {
 	return this->m_tilesetConfig->options.enableFrustumCulling;
+}
+
+void Cesium3DTileset::set_occlusion_culling_enabled(bool enabled) {
+	if (this->m_occlusionCullingRequested == enabled) {
+		return;
+	}
+	this->m_occlusionCullingRequested = enabled;
+	this->recreate_tileset();
+}
+
+bool Cesium3DTileset::get_occlusion_culling_enabled() const {
+	return this->m_occlusionCullingRequested;
+}
+
+void Cesium3DTileset::set_occlusion_pool_size(int32_t size) {
+	size = std::clamp(size, 1, 65536);
+	if (this->m_occlusionPoolSize == size) {
+		return;
+	}
+	this->m_occlusionPoolSize = size;
+	if (this->m_occlusionCullingRequested) {
+		this->recreate_tileset();
+	}
+}
+
+int32_t Cesium3DTileset::get_occlusion_pool_size() const {
+	return this->m_occlusionPoolSize;
+}
+
+void Cesium3DTileset::set_delay_refinement_for_occlusion(bool enabled) {
+	this->m_delayRefinementForOcclusion = enabled;
+	this->m_tilesetConfig->options.delayRefinementForOcclusion = enabled;
+	if (this->m_activeTileset != nullptr) {
+		this->m_activeTileset->getOptions().delayRefinementForOcclusion = enabled;
+	}
+}
+
+bool Cesium3DTileset::get_delay_refinement_for_occlusion() const {
+	return this->m_delayRefinementForOcclusion;
 }
 
 void Cesium3DTileset::set_fog_culling_enabled(bool enabled) {
@@ -1582,6 +1626,7 @@ void Cesium3DTileset::update_tileset(const Transform3D& cameraTransform)
 	// updateViewGroup or loadTiles. Pump this tileset's AsyncSystem exactly once
 	// before its per-frame selection and loading work.
 	this->m_activeTileset->getAsyncSystem().dispatchMainThreadTasks();
+	this->consume_occlusion_results();
 
 	// Cesium Native accepts all render cameras in one view-group update. With no
 	// manager configured, retain the historical current-viewport-camera path.
@@ -1874,6 +1919,10 @@ void Cesium3DTileset::update_tileset(const Transform3D& cameraTransform)
 			}
 		);
 	}
+	// Snapshot the proxies from the real render view before the optional
+	// prediction view-group reuses the Native proxy pool. Results are cached by
+	// tile identity in the Godot pool, so they survive that expected remapping.
+	this->submit_occlusion_queries(currentViewport);
 	if (this->m_lastPredictionActive) {
 		if (this->m_predictionViewGroup == nullptr) {
 			this->m_predictionViewGroup = std::make_unique<
@@ -2091,6 +2140,169 @@ Transform3D Cesium3DTileset::get_debug_world_bounds_transform(
 				CesiumMathUtils::to_glm_mat4(sourceBounds)
 			)
 		);
+}
+
+AABB Cesium3DTileset::get_occlusion_world_bounds(
+	const Cesium3DTilesSelection::Tile& tile
+) const {
+	const CesiumGeometry::OrientedBoundingBox box =
+		Cesium3DTilesSelection::getOrientedBoundingBoxFromBoundingVolume(
+			tile.getBoundingVolume(),
+			CesiumGeospatial::Ellipsoid::WGS84
+		);
+	const glm::dmat3& halfAxes = box.getHalfAxes();
+	const Transform3D sourceBounds(
+		Basis(
+			CesiumMathUtils::from_glm_vec3(halfAxes[0]),
+			CesiumMathUtils::from_glm_vec3(halfAxes[1]),
+			CesiumMathUtils::from_glm_vec3(halfAxes[2])
+		),
+		CesiumMathUtils::from_glm_vec3(box.getCenter())
+	);
+	Transform3D worldBounds;
+	if (this->m_georeference == nullptr) {
+		worldBounds = this->get_global_transform() * sourceBounds;
+	} else {
+		worldBounds = this->m_georeference->get_global_transform() *
+			CesiumMathUtils::from_glm_mat4(
+				this->m_georeference->ecef_transform_to_local(
+					CesiumMathUtils::to_glm_mat4(sourceBounds)
+				)
+			);
+	}
+	return worldBounds.xform(AABB(Vector3(-1.0, -1.0, -1.0), Vector3(2.0, 2.0, 2.0)));
+}
+
+void Cesium3DTileset::consume_occlusion_results() {
+	PackedByteArray results;
+	uint64_t generation = 0;
+	{
+		std::lock_guard<std::mutex> lock(this->m_occlusionResultMutex);
+		if (this->m_completedOcclusionGeneration == 0) {
+			return;
+		}
+		generation = this->m_completedOcclusionGeneration;
+		results = this->m_completedOcclusionResults;
+		this->m_completedOcclusionGeneration = 0;
+		this->m_completedOcclusionResults.clear();
+	}
+	if (
+		generation != this->m_occlusionSubmission.generation ||
+		this->m_occlusionProxyPool == nullptr
+	) {
+		return;
+	}
+	const size_t count = std::min(
+		this->m_occlusionSubmission.tiles.size(),
+		static_cast<size_t>(results.size())
+	);
+	this->m_lastOcclusionVisibleResultCount = 0;
+	this->m_lastOcclusionOccludedResultCount = 0;
+	this->m_lastOcclusionUnavailableResultCount = 0;
+	for (size_t index = 0; index < count; ++index) {
+		const uint8_t result = results[static_cast<int64_t>(index)];
+		if (result == 2) {
+			++this->m_lastOcclusionOccludedResultCount;
+		} else if (result == 1) {
+			++this->m_lastOcclusionVisibleResultCount;
+		} else {
+			++this->m_lastOcclusionUnavailableResultCount;
+		}
+		const Cesium3DTilesSelection::TileOcclusionState state =
+			result == 2
+			? Cesium3DTilesSelection::TileOcclusionState::Occluded
+			: Cesium3DTilesSelection::TileOcclusionState::NotOccluded;
+		this->m_occlusionProxyPool->apply_result(
+			this->m_occlusionSubmission.tiles[index],
+			state,
+			generation
+		);
+	}
+	this->m_occlusionQueryInFlight = false;
+}
+
+void Cesium3DTileset::submit_occlusion_queries(Viewport* viewport) {
+	if (
+		!this->m_occlusionBridgeAvailable ||
+		this->m_occlusionProxyPool == nullptr || viewport == nullptr ||
+		this->m_occlusionQueryInFlight
+	) {
+		return;
+	}
+	if (!viewport->is_using_occlusion_culling()) {
+		viewport->set_use_occlusion_culling(true);
+	}
+	const std::vector<CesiumGodotOcclusionProxy*> proxies =
+		this->m_occlusionProxyPool->snapshot_active();
+	if (proxies.empty()) {
+		return;
+	}
+	Array bounds;
+	bounds.resize(static_cast<int64_t>(proxies.size()));
+	OcclusionSubmission submission;
+	submission.generation = ++this->m_occlusionGeneration;
+	submission.tiles.reserve(proxies.size());
+	for (size_t index = 0; index < proxies.size(); ++index) {
+		const Cesium3DTilesSelection::Tile* tile = proxies[index]->get_tile();
+		if (tile == nullptr) {
+			continue;
+		}
+		bounds[static_cast<int64_t>(submission.tiles.size())] =
+			this->get_occlusion_world_bounds(*tile);
+		submission.tiles.push_back(tile);
+	}
+	bounds.resize(static_cast<int64_t>(submission.tiles.size()));
+	if (submission.tiles.empty()) {
+		return;
+	}
+	this->m_occlusionSubmission = std::move(submission);
+	this->m_occlusionQueryInFlight = true;
+	RenderingServer::get_singleton()->call_on_render_thread(
+		Callable(this, "_execute_occlusion_query").bind(
+			viewport->get_viewport_rid(),
+			bounds,
+			static_cast<int64_t>(this->m_occlusionSubmission.generation)
+		)
+	);
+}
+
+void Cesium3DTileset::execute_occlusion_query(
+	const RID& viewportRid,
+	const Array& bounds,
+	int64_t generation
+) {
+	RenderingServer* renderingServer = RenderingServer::get_singleton();
+	PackedByteArray results;
+	if (
+		renderingServer != nullptr &&
+		renderingServer->has_method("viewport_query_occlusion")
+	) {
+		const Variant value = renderingServer->call(
+			"viewport_query_occlusion",
+			viewportRid,
+			bounds
+		);
+		if (value.get_type() == Variant::PACKED_BYTE_ARRAY) {
+			results = value;
+		}
+	}
+	std::lock_guard<std::mutex> lock(this->m_occlusionResultMutex);
+	if (static_cast<uint64_t>(generation) >= this->m_completedOcclusionGeneration) {
+		this->m_completedOcclusionGeneration = static_cast<uint64_t>(generation);
+		this->m_completedOcclusionResults = results;
+	}
+}
+
+void Cesium3DTileset::reset_occlusion_bridge() {
+	++this->m_occlusionGeneration;
+	this->m_occlusionSubmission = OcclusionSubmission{};
+	this->m_occlusionQueryInFlight = false;
+	{
+		std::lock_guard<std::mutex> lock(this->m_occlusionResultMutex);
+		this->m_completedOcclusionResults.clear();
+		this->m_completedOcclusionGeneration = 0;
+	}
+	this->m_occlusionProxyPool.reset();
 }
 
 void Cesium3DTileset::capture_debug_tile_states(
@@ -2446,11 +2658,32 @@ Dictionary Cesium3DTileset::get_streaming_statistics() const {
 	result["tiles_waiting_for_occlusion_results"] = static_cast<int64_t>(
 		this->m_lastTilesWaitingForOcclusionResults
 	);
-	result["occlusion_culling_available"] = false;
-	result["occlusion_culling_enabled"] = false;
-	result["occlusion_culling_backend"] = "unavailable";
-	result["occlusion_culling_unavailable_reason"] =
-		OCCLUSION_CULLING_UNAVAILABLE_REASON;
+	const bool occlusionAvailable = RenderingServer::get_singleton() != nullptr &&
+		RenderingServer::get_singleton()->has_method("viewport_query_occlusion");
+	const bool occlusionEnabled = occlusionAvailable &&
+		this->m_occlusionCullingRequested && this->m_occlusionProxyPool != nullptr;
+	result["occlusion_culling_available"] = occlusionAvailable;
+	result["occlusion_culling_enabled"] = occlusionEnabled;
+	result["occlusion_culling_backend"] = occlusionAvailable
+		? "godot_embree_hzbuffer"
+		: "unavailable";
+	result["occlusion_culling_unavailable_reason"] = occlusionAvailable
+		? String()
+		: String(OCCLUSION_CULLING_UNAVAILABLE_REASON);
+	result["occlusion_query_in_flight"] = this->m_occlusionQueryInFlight;
+	result["occlusion_query_generation"] = static_cast<int64_t>(
+		this->m_occlusionGeneration
+	);
+	result["occlusion_query_bound_count"] = static_cast<int64_t>(
+		this->m_occlusionSubmission.tiles.size()
+	);
+	result["occlusion_visible_result_count"] =
+		this->m_lastOcclusionVisibleResultCount;
+	result["occlusion_occluded_result_count"] =
+		this->m_lastOcclusionOccludedResultCount;
+	result["occlusion_unavailable_result_count"] =
+		this->m_lastOcclusionUnavailableResultCount;
+	result["occlusion_pool_size"] = this->m_occlusionPoolSize;
 	result["tiles_kicked"] = static_cast<int64_t>(this->m_lastTilesKicked);
 	result["maximum_depth_visited"] = static_cast<int64_t>(
 		this->m_lastMaximumDepthVisited
@@ -3785,6 +4018,7 @@ void Cesium3DTileset::release_active_tileset() {
 	const std::shared_ptr<NetworkAssetAccessor> networkAccessor =
 		this->m_networkAssetAccessor;
 	this->m_activeTileset.reset();
+	this->reset_occlusion_bridge();
 	if (networkAccessor != nullptr) {
 		networkAccessor->cancel_all();
 	}
@@ -3855,6 +4089,22 @@ void Cesium3DTileset::load_tileset()
 
 Cesium3DTilesSelection::TilesetExternals Cesium3DTileset::create_tileset_externals()
 {
+	RenderingServer* renderingServer = RenderingServer::get_singleton();
+	this->m_occlusionBridgeAvailable = renderingServer != nullptr &&
+		renderingServer->has_method("viewport_query_occlusion");
+	const bool useOcclusion = this->m_occlusionCullingRequested &&
+		this->m_occlusionBridgeAvailable;
+	this->m_tilesetConfig->options.enableOcclusionCulling = useOcclusion;
+	this->m_tilesetConfig->options.delayRefinementForOcclusion =
+		useOcclusion && this->m_delayRefinementForOcclusion;
+	if (useOcclusion) {
+		this->m_occlusionProxyPool =
+			std::make_shared<CesiumGodotOcclusionProxyPool>(
+				this->m_occlusionPoolSize
+			);
+	} else {
+		this->m_occlusionProxyPool.reset();
+	}
 	CesiumNetworkRetryOptions retryOptions;
 	retryOptions.maximumRetries = static_cast<uint32_t>(
 		this->m_maximumNetworkRetries
@@ -3969,6 +4219,7 @@ Cesium3DTilesSelection::TilesetExternals Cesium3DTileset::create_tileset_externa
 		asyncSystem,
 		creditSystem
 	};
+	result.pTileOcclusionProxyPool = this->m_occlusionProxyPool;
 	return result;
 }
 
@@ -4080,6 +4331,15 @@ void Cesium3DTileset::set_show_hierarchy(bool show) {
 
 void Cesium3DTileset::_bind_methods()
 {
+	ClassDB::bind_method(
+		D_METHOD(
+			"_execute_occlusion_query",
+			"viewport_rid",
+			"bounds",
+			"generation"
+		),
+		&Cesium3DTileset::execute_occlusion_query
+	);
 #pragma region Inspector properties
 	ClassDB::bind_method(D_METHOD("set_maximum_screen_space_error", "error"), &Cesium3DTileset::set_maximum_screen_space_error);
 	ClassDB::bind_method(D_METHOD("get_maximum_screen_space_error"), &Cesium3DTileset::get_maximum_screen_space_error);
@@ -4142,6 +4402,60 @@ void Cesium3DTileset::_bind_methods()
 		),
 		"set_frustum_culling_enabled",
 		"get_frustum_culling_enabled"
+	);
+	ClassDB::bind_method(
+		D_METHOD("set_occlusion_culling_enabled", "enabled"),
+		&Cesium3DTileset::set_occlusion_culling_enabled
+	);
+	ClassDB::bind_method(
+		D_METHOD("get_occlusion_culling_enabled"),
+		&Cesium3DTileset::get_occlusion_culling_enabled
+	);
+	ADD_PROPERTY(
+		PropertyInfo(
+			Variant::BOOL,
+			"occlusion_culling_enabled",
+			PROPERTY_HINT_NONE,
+			OCCLUSION_CULLING_DESC
+		),
+		"set_occlusion_culling_enabled",
+		"get_occlusion_culling_enabled"
+	);
+	ClassDB::bind_method(
+		D_METHOD("set_occlusion_pool_size", "size"),
+		&Cesium3DTileset::set_occlusion_pool_size
+	);
+	ClassDB::bind_method(
+		D_METHOD("get_occlusion_pool_size"),
+		&Cesium3DTileset::get_occlusion_pool_size
+	);
+	ADD_PROPERTY(
+		PropertyInfo(
+			Variant::INT,
+			"occlusion_pool_size",
+			PROPERTY_HINT_RANGE,
+			"1,65536,1,or_greater"
+		),
+		"set_occlusion_pool_size",
+		"get_occlusion_pool_size"
+	);
+	ClassDB::bind_method(
+		D_METHOD("set_delay_refinement_for_occlusion", "enabled"),
+		&Cesium3DTileset::set_delay_refinement_for_occlusion
+	);
+	ClassDB::bind_method(
+		D_METHOD("get_delay_refinement_for_occlusion"),
+		&Cesium3DTileset::get_delay_refinement_for_occlusion
+	);
+	ADD_PROPERTY(
+		PropertyInfo(
+			Variant::BOOL,
+			"delay_refinement_for_occlusion",
+			PROPERTY_HINT_NONE,
+			DELAY_REFINEMENT_FOR_OCCLUSION_DESC
+		),
+		"set_delay_refinement_for_occlusion",
+		"get_delay_refinement_for_occlusion"
 	);
 
 	ClassDB::bind_method(
