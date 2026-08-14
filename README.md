@@ -64,7 +64,10 @@ The repository includes a credential-free
 [lifecycle and material example](examples/lifecycle_material_demo/README.md)
 and focused guides under [`docs/`](docs/). The
 [porting map](PORTING_MAP.md) records how runtime responsibilities correspond
-to Cesium for Unreal.
+to Cesium for Unreal. Cesium request-time occlusion is supported through an
+optional, small Godot engine API extension; the
+[occlusion guide](docs/OCCLUSION_CULLING.md) documents the required engine
+change, runtime behavior, fallback, hierarchy requirements, and tests.
 
 ## Testing
 
