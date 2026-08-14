@@ -121,7 +121,10 @@ using namespace godot;
 #include <unordered_map>
 
 constexpr real_t DEFAULT_MAIN_THREAD_BUDGET_MILLISECONDS = 5.0;
-constexpr real_t DEFAULT_CACHE_UNLOAD_BUDGET_MILLISECONDS = 5.0;
+// Keep maximumCachedBytes enforceable under sustained streaming. A nonzero
+// time budget makes Native's cache ceiling soft: loading can outrun eviction
+// indefinitely. Zero is Native's default and drains all required eviction.
+constexpr real_t DEFAULT_CACHE_UNLOAD_BUDGET_MILLISECONDS = 0.0;
 constexpr const char* ION_ACCESS_TOKEN_P_NAME = "ion_access_token";
 constexpr const char* ION_ASSET_ID_P_NAME = "ion_asset_id";
 constexpr const char* URL_P_NAME = "url";
