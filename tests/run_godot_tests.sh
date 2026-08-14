@@ -75,6 +75,12 @@ XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --
 XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://frustum_culling_test.gd
 XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+  --script res://occlusion_bridge_test.gd
+XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+  --script res://occlusion_engine_e2e_test.gd
+XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+  --script res://occlusion_tileset_e2e_test.gd
+XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://multi_camera_selection_test.gd
 XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://height_sampling_test.gd

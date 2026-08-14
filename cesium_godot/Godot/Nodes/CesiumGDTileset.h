@@ -10,6 +10,7 @@
 #include "core/math/aabb.h"
 #include "core/math/vector4.h"
 #include "core/variant/array.h"
+#include "core/variant/packed_byte_array.h"
 #include "core/variant/packed_float64_array.h"
 #include "core/variant/packed_vector3_array.h"
 #include "core/string/node_path.h"
@@ -25,6 +26,7 @@
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_float64_array.hpp>
+#include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/packed_vector3_array.hpp>
 #include <godot_cpp/variant/node_path.hpp>
 #include <godot_cpp/variant/vector2.hpp>
@@ -36,6 +38,7 @@ using namespace godot;
 #include "glm/ext/vector_double3.hpp"
 
 #include <chrono>
+#include <mutex>
 #include <string>
 #include <memory>
 #include <unordered_set>
@@ -77,6 +80,8 @@ class CesiumGeoreference;
 
 class CesiumGDCreditSystem;
 class CesiumCameraManager;
+class CesiumGodotOcclusionProxy;
+class CesiumGodotOcclusionProxyPool;
 
 class Cesium3DTile;
 
@@ -143,6 +148,18 @@ public:
 	void set_frustum_culling_enabled(bool enabled);
 
 	bool get_frustum_culling_enabled() const;
+
+	void set_occlusion_culling_enabled(bool enabled);
+
+	bool get_occlusion_culling_enabled() const;
+
+	void set_occlusion_pool_size(int32_t size);
+
+	int32_t get_occlusion_pool_size() const;
+
+	void set_delay_refinement_for_occlusion(bool enabled);
+
+	bool get_delay_refinement_for_occlusion() const;
 
 	void set_fog_culling_enabled(bool enabled);
 
@@ -489,6 +506,17 @@ private:
 	Transform3D get_debug_world_bounds_transform(
 		const Ref<CesiumBoundingVolume>& bounds
 	) const;
+	AABB get_occlusion_world_bounds(
+		const Cesium3DTilesSelection::Tile& tile
+	) const;
+	void consume_occlusion_results();
+	void submit_occlusion_queries(Viewport* viewport);
+	void execute_occlusion_query(
+		const RID& viewportRid,
+		const Array& bounds,
+		int64_t generation
+	);
+	void reset_occlusion_bridge();
 
 	Cesium3DTilesSelection::TilesetExternals create_tileset_externals();
 
@@ -511,6 +539,24 @@ private:
 		m_activeHeightRequests;
 	std::unique_ptr<Cesium3DTilesSelection::TilesetViewGroup>
 		m_predictionViewGroup;
+	std::shared_ptr<CesiumGodotOcclusionProxyPool> m_occlusionProxyPool;
+	struct OcclusionSubmission {
+		uint64_t generation = 0;
+		std::vector<const Cesium3DTilesSelection::Tile*> tiles;
+	};
+	OcclusionSubmission m_occlusionSubmission;
+	mutable std::mutex m_occlusionResultMutex;
+	PackedByteArray m_completedOcclusionResults;
+	uint64_t m_completedOcclusionGeneration = 0;
+	uint64_t m_occlusionGeneration = 0;
+	bool m_occlusionQueryInFlight = false;
+	bool m_occlusionBridgeAvailable = false;
+	int32_t m_lastOcclusionVisibleResultCount = 0;
+	int32_t m_lastOcclusionOccludedResultCount = 0;
+	int32_t m_lastOcclusionUnavailableResultCount = 0;
+	bool m_occlusionCullingRequested = false;
+	bool m_delayRefinementForOcclusion = false;
+	int32_t m_occlusionPoolSize = 1000;
 
 
 	OpaqueTilesetOptions* m_tilesetConfig;
