@@ -107,6 +107,9 @@
       "alphaMode": "MASK",
       "alphaCutoff": 0.33,
       "doubleSided": true
+      ,"extras": {
+        "cesium_godot_application_texture_indices": [0, 0, 999, "invalid"]
+      }
     },
     {
       "name": "LifecycleUnlitMaterial",

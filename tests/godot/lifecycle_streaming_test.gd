@@ -977,6 +977,18 @@ func _check_primitive_context() -> bool:
 	if not bool(snapshot.get("default_material_is_shader", false)):
 		_fail("Default glTF material was not realized as a ShaderMaterial")
 		return false
+	var application_textures := snapshot.get(
+		"default_application_textures", {}
+	) as Dictionary
+	if application_textures.size() != 1 or not application_textures.has(0):
+		_fail(
+			"Application texture indices were not validated and realized once: %s"
+			% [application_textures]
+		)
+		return false
+	if not application_textures[0] is Texture2D:
+		_fail("Application texture index 0 did not expose a Texture2D")
+		return false
 	var shader_code := str(snapshot.get("default_shader_code", ""))
 	for expected_shader_term in [
 		"cull_disabled",
