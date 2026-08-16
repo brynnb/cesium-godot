@@ -33,6 +33,9 @@ func _create_material(
 		"loaded_tile": primitive.loaded_tile,
 		"overlay_uv_index": primitive.get_overlay_texture_coordinate_index(0),
 		"default_material_is_shader": default_shader_material != null,
+		"default_application_textures": default_material.get_meta(
+			"cesium_godot_application_textures", {}
+		),
 		"default_shader_code": default_shader.code if default_shader != null else "",
 		"default_base_color_factor": (
 			default_shader_material.get_shader_parameter("base_color_factor")

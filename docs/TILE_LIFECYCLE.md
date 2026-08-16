@@ -207,6 +207,21 @@ parameters, multiple overlays, replacement, and deterministic detach.
 Stable coordinate parameters are documented in
 [`WORLD_ALIGNED_MATERIALS.md`](WORLD_ALIGNED_MATERIALS.md).
 
+### Additional application textures
+
+Core glTF material slots do not cover every application material graph. An
+exporter may list additional model texture indices in material extras under
+`cesium_godot_application_texture_indices`. The adapter realizes valid indices
+through the same decoded-image cache as ordinary glTF slots and exposes a
+`Dictionary[int, Texture2D]` on the supplied default material as metadata named
+`cesium_godot_application_textures`.
+
+Lifecycle receivers can use those textures to build an application shader
+without reading files or decoding/uploading duplicate images. Invalid,
+duplicate, or non-numeric indices are ignored. The textures follow the normal
+tile/model resource lifetime; applications should not retain the dictionary
+after tile unload unless they deliberately want to retain those GPU resources.
+
 ## Tests
 
 `tests/godot/fixtures/lifecycle` is a tiny local 3D Tiles 1.1 tileset containing

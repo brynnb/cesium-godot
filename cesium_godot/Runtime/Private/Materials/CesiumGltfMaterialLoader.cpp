@@ -11,6 +11,7 @@
 #include "CesiumGltf/KhrTextureTransform.h"
 #include "CesiumGltf/Sampler.h"
 #include "CesiumGltf/Texture.h"
+#include "CesiumUtility/JsonValue.h"
 #include "Runtime/Private/Renderer/CesiumGDTextureLoader.h"
 
 #include "godot_cpp/core/error_macros.hpp"
@@ -18,6 +19,7 @@
 #include "godot_cpp/variant/vector2i.hpp"
 
 #include <algorithm>
+#include <optional>
 #include <sstream>
 
 namespace {
@@ -919,6 +921,48 @@ Ref<Material> CesiumGltfMaterialLoader::create_material(
 	configure_texture_slot(result, "normal", normal);
 	configure_texture_slot(result, "occlusion", occlusion);
 	configure_texture_slot(result, "emissive", emissive);
+
+	// Applications may need source textures that are not representable by a
+	// core glTF material slot (for example, a legacy layered material graph).
+	// Keep this generic: exporters opt in by listing model texture indices in
+	// material extras, and lifecycle receivers retrieve the realized Texture2D
+	// resources from the default material metadata without decoding images a
+	// second time.
+	Dictionary applicationTextures;
+	auto applicationTextureIndices = material.extras.find(
+		"cesium_godot_application_texture_indices"
+	);
+	if (
+		applicationTextureIndices != material.extras.end() &&
+		applicationTextureIndices->second.isArray()
+	) {
+		for (
+			const CesiumUtility::JsonValue& value :
+			applicationTextureIndices->second.getArray()
+		) {
+			const std::optional<int32_t> textureIndex =
+				value.getSafeNumber<int32_t>();
+			if (
+				!textureIndex || *textureIndex < 0 ||
+				*textureIndex >= static_cast<int32_t>(this->m_model.textures.size()) ||
+				applicationTextures.has(*textureIndex)
+			) {
+				continue;
+			}
+			Error textureError = Error::OK;
+			Ref<ImageTexture> texture = this->load_texture(
+				*textureIndex,
+				&textureError
+			);
+			if (textureError != Error::OK && *error == Error::OK) {
+				*error = textureError;
+			}
+			if (texture.is_valid()) {
+				applicationTextures[*textureIndex] = texture;
+			}
+		}
+	}
+	result->set_meta("cesium_godot_application_textures", applicationTextures);
 
 	const bool featureStyleRequested =
 		featureStyle != nullptr && featureStyle->requested;
