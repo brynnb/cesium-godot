@@ -7,8 +7,11 @@ live Godot properties:
   to `Tileset::loadTiles()` for main-thread renderer realization each frame.
   The default is 5 ms. Zero drains every pending main-thread load in one call.
 - `tile_cache_unload_time_limit_ms` is the soft time budget for evicting cached
-  Native content each frame. The default is 5 ms. Zero performs all required
-  eviction without throttling.
+  Native content each frame. The default is zero, which performs all required
+  eviction without throttling and prevents sustained loading from outrunning
+  cleanup. Setting a positive value can reduce eviction work in an individual
+  frame, but makes `maximum_cached_bytes` a soft limit that may be exceeded
+  while eviction catches up.
 - `maximum_cached_bytes` is Cesium Native's in-memory tile and raster-data
   budget. It is independent of the HTTP disk cache. Optional hardware-derived
   sizing and explicit-override precedence are documented in
