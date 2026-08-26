@@ -1,0 +1,521 @@
+From 1412cc25bda4d1050f052b94433941719a7ec945 Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Wed, 26 Aug 2026 10:57:28 -0700
+Subject: [PATCH] Keep glTF cancellation out of asset errors and shared fetches
+
+---
+ .../TilesetContentLoader.h                    |   6 +-
+ .../TilesetContentOptions.h                   |   8 +
+ .../src/ImplicitOctreeLoader.cpp              |  10 ++
+ .../src/ImplicitQuadtreeLoader.cpp            |  10 ++
+ .../src/TilesetContentManager.cpp             |   7 +-
+ .../src/TilesetContentOptions.cpp             |   2 +
+ .../src/TilesetJsonLoader.cpp                 |  10 ++
+ .../test/TestTilesetJsonLoader.cpp            |  27 +++
+ .../include/CesiumGltfReader/GltfReader.h     |  13 ++
+ CesiumGltfReader/src/GltfReader.cpp           |  26 ++-
+ .../test/TestGltfCancellation.cpp             | 169 ++++++++++++++++++
+ 11 files changed, 281 insertions(+), 7 deletions(-)
+ create mode 100644 CesiumGltfReader/test/TestGltfCancellation.cpp
+
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetContentLoader.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetContentLoader.h
+index dc35881..1fb5cc7 100644
+--- a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetContentLoader.h
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetContentLoader.h
+@@ -74,8 +74,9 @@ struct CESIUM3DTILESSELECTION_API TileLoadInput {
+ 
+   /**
+    * @brief The content options the {@link TilesetContentLoader} will use to process the content of the tile.
++   * Owned by value so asynchronous copies retain their per-load request context.
+    */
+-  const TilesetContentOptions& contentOptions;
++  const TilesetContentOptions contentOptions;
+ 
+   /**
+    * @brief The async system to run the loading in worker thread or main thread.
+@@ -85,8 +86,9 @@ struct CESIUM3DTILESSELECTION_API TileLoadInput {
+   /**
+    * @brief The asset accessor to make requests for the tile content over the
+    * wire.
++   * Owned by value because the manager creates a per-load cancellation wrapper.
+    */
+-  const std::shared_ptr<CesiumAsync::IAssetAccessor>& pAssetAccessor;
++  const std::shared_ptr<CesiumAsync::IAssetAccessor> pAssetAccessor;
+ 
+   /**
+    * @brief The logger that receives details of loading errors and warnings.
+diff --git a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetContentOptions.h b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetContentOptions.h
+index 0a1c9ef..44aab39 100644
+--- a/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetContentOptions.h
++++ b/Cesium3DTilesSelection/include/Cesium3DTilesSelection/TilesetContentOptions.h
+@@ -11,6 +11,14 @@ namespace Cesium3DTilesSelection {
+  * including construction of its glTF models.
+  */
+ struct CESIUM3DTILESSELECTION_API TilesetContentOptions {
++  /**
++   * @brief Runtime request context. The content manager populates these only
++   * on a per-load copy, never on the tileset's persistent configuration.
++   * Shared assets must not inherit the cancellation token of their first tile.
++   */
++  CesiumAsync::AssetRequestOptions requestOptions;
++  std::shared_ptr<CesiumAsync::IAssetAccessor> pSharedAssetAccessor;
++
+   /**
+    * @brief Whether to include a water mask within the Gltf extras.
+    *
+diff --git a/Cesium3DTilesSelection/src/ImplicitOctreeLoader.cpp b/Cesium3DTilesSelection/src/ImplicitOctreeLoader.cpp
+index 44bc876..4186445 100644
+--- a/Cesium3DTilesSelection/src/ImplicitOctreeLoader.cpp
++++ b/Cesium3DTilesSelection/src/ImplicitOctreeLoader.cpp
+@@ -162,6 +162,11 @@ CesiumAsync::Future<TileLoadResult> requestTileContent(
+            requestHeaders,
+            ellipsoid](std::shared_ptr<CesiumAsync::IAssetRequest>&&
+                           pCompletedRequest) mutable {
++            if (contentOptions.requestOptions.isCancellationRequested()) {
++              return asyncSystem.createResolvedFuture(
++                  TileLoadResult::createRetryLaterResult(
++                      pAssetAccessor, std::move(pCompletedRequest)));
++            }
+             const CesiumAsync::IAssetResponse* pResponse =
+                 pCompletedRequest->response();
+             auto fail = [&]() {
+@@ -215,10 +220,15 @@ CesiumAsync::Future<TileLoadResult> requestTileContent(
+               return converter(responseData, gltfOptions, assetFetcher)
+                   .thenImmediately(
+                       [pAssetAccessor = std::move(pAssetAccessor),
++                       requestOptions = contentOptions.requestOptions,
+                        pLogger,
+                        tileUrl,
+                        pCompletedRequest,
+                        ellipsoid](GltfConverterResult&& result) mutable {
++                        if (requestOptions.isCancellationRequested()) {
++                          return TileLoadResult::createRetryLaterResult(
++                              pAssetAccessor, std::move(pCompletedRequest));
++                        }
+                         // Report any errors if there are any
+                         logTileLoadResult(pLogger, tileUrl, result.errors);
+                         if (result.errors || !result.model) {
+diff --git a/Cesium3DTilesSelection/src/ImplicitQuadtreeLoader.cpp b/Cesium3DTilesSelection/src/ImplicitQuadtreeLoader.cpp
+index b0cce43..67e0dcd 100644
+--- a/Cesium3DTilesSelection/src/ImplicitQuadtreeLoader.cpp
++++ b/Cesium3DTilesSelection/src/ImplicitQuadtreeLoader.cpp
+@@ -172,6 +172,11 @@ CesiumAsync::Future<TileLoadResult> requestTileContent(
+                            requestHeaders](
+                               std::shared_ptr<CesiumAsync::IAssetRequest>&&
+                                   pCompletedRequest) mutable {
++        if (contentOptions.requestOptions.isCancellationRequested()) {
++          return asyncSystem.createResolvedFuture(
++              TileLoadResult::createRetryLaterResult(
++                  pAssetAccessor, std::move(pCompletedRequest)));
++        }
+         const CesiumAsync::IAssetResponse* pResponse =
+             pCompletedRequest->response();
+         auto fail = [&]() {
+@@ -224,10 +229,15 @@ CesiumAsync::Future<TileLoadResult> requestTileContent(
+           return converter(responseData, gltfOptions, assetFetcher)
+               .thenImmediately(
+                   [ellipsoid,
++                   requestOptions = contentOptions.requestOptions,
+                    pLogger,
+                    tileUrl,
+                    pAssetAccessor,
+                    pCompletedRequest](GltfConverterResult&& result) mutable {
++                    if (requestOptions.isCancellationRequested()) {
++                      return TileLoadResult::createRetryLaterResult(
++                          pAssetAccessor, std::move(pCompletedRequest));
++                    }
+                     // Report any errors if there are any
+                     logTileLoadResult(pLogger, tileUrl, result.errors);
+                     if (result.errors || !result.model) {
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.cpp b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+index 9ce8dea..0d45158 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.cpp
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+@@ -1351,6 +1351,9 @@ void TilesetContentManager::loadTileContent(
+   auto pTileAssetAccessor = std::make_shared<CancellationAssetAccessor>(
+       this->_externals.pAssetAccessor,
+       pCancellationToken);
++  TilesetContentOptions contentOptions = tilesetOptions.contentOptions;
++  contentOptions.requestOptions.pCancellationToken = pCancellationToken;
++  contentOptions.pSharedAssetAccessor = this->_externals.pAssetAccessor;
+ 
+   TileContentLoadInfo tileLoadInfo{
+       this->_externals.asyncSystem,
+@@ -1358,7 +1361,7 @@ void TilesetContentManager::loadTileContent(
+       this->_externals.pPrepareRendererResources,
+       this->_externals.pLogger,
+       this->_pSharedAssetSystem,
+-      tilesetOptions.contentOptions,
++      contentOptions,
+       tile};
+ 
+   TilesetContentLoader* pLoader;
+@@ -1370,7 +1373,7 @@ void TilesetContentManager::loadTileContent(
+ 
+   TileLoadInput loadInput{
+       tile,
+-      tilesetOptions.contentOptions,
++      contentOptions,
+       this->_externals.asyncSystem,
+       pTileAssetAccessor,
+       this->_externals.pLogger,
+diff --git a/Cesium3DTilesSelection/src/TilesetContentOptions.cpp b/Cesium3DTilesSelection/src/TilesetContentOptions.cpp
+index 5c3ae79..1e90e15 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentOptions.cpp
++++ b/Cesium3DTilesSelection/src/TilesetContentOptions.cpp
+@@ -6,6 +6,8 @@ namespace Cesium3DTilesSelection {
+ CesiumGltfReader::GltfReaderOptions
+ TilesetContentOptions::toGltfReaderOptions() const {
+   CesiumGltfReader::GltfReaderOptions options;
++  options.requestOptions = this->requestOptions;
++  options.pSharedAssetAccessor = this->pSharedAssetAccessor;
+   options.ktx2TranscodeTargets = this->ktx2TranscodeTargets;
+   options.applyTextureTransform = this->applyTextureTransform;
+   options.primitiveModeOptions = this->primitiveModeOptions;
+diff --git a/Cesium3DTilesSelection/src/TilesetJsonLoader.cpp b/Cesium3DTilesSelection/src/TilesetJsonLoader.cpp
+index cfe8461..08327df 100644
+--- a/Cesium3DTilesSelection/src/TilesetJsonLoader.cpp
++++ b/Cesium3DTilesSelection/src/TilesetJsonLoader.cpp
+@@ -1254,6 +1254,11 @@ TilesetJsonLoader::loadTileContent(const TileLoadInput& loadInput) {
+            requestHeaders,
+            pExternalSchema](std::shared_ptr<CesiumAsync::IAssetRequest>&&
+                                 pCompletedRequest) mutable {
++            if (contentOptions.requestOptions.isCancellationRequested()) {
++              return asyncSystem.createResolvedFuture(
++                  TileLoadResult::createRetryLaterResult(
++                      pAssetAccessor, std::move(pCompletedRequest)));
++            }
+             auto pResponse = pCompletedRequest->response();
+             const std::string& tileUrl = pCompletedRequest->url();
+             if (!pResponse) {
+@@ -1304,12 +1309,17 @@ TilesetJsonLoader::loadTileContent(const TileLoadInput& loadInput) {
+               return converter(responseData, gltfOptions, assetFetcher)
+                   .thenImmediately(
+                       [ellipsoid,
++                       requestOptions = contentOptions.requestOptions,
+                        pLogger,
+                        upAxis,
+                        tileUrl,
+                        pAssetAccessor,
+                        pCompletedRequest = std::move(pCompletedRequest)](
+                           GltfConverterResult&& result) mutable {
++                        if (requestOptions.isCancellationRequested()) {
++                          return TileLoadResult::createRetryLaterResult(
++                              pAssetAccessor, std::move(pCompletedRequest));
++                        }
+                         logTileLoadResult(pLogger, tileUrl, result.errors);
+                         if (result.errors) {
+                           return TileLoadResult::createFailedResult(
+diff --git a/Cesium3DTilesSelection/test/TestTilesetJsonLoader.cpp b/Cesium3DTilesSelection/test/TestTilesetJsonLoader.cpp
+index 485e8aa..bd53e4c 100644
+--- a/Cesium3DTilesSelection/test/TestTilesetJsonLoader.cpp
++++ b/Cesium3DTilesSelection/test/TestTilesetJsonLoader.cpp
+@@ -56,6 +56,33 @@ using namespace CesiumGltf;
+ using namespace CesiumNativeTests;
+ using namespace CesiumUtility;
+ 
++TEST_CASE("TileLoadInput owns its per-load request context") {
++  Tile tile(nullptr);
++  AsyncSystem asyncSystem(std::make_shared<SimpleTaskProcessor>());
++  auto logger = spdlog::default_logger();
++  std::vector<IAssetAccessor::THeader> headers;
++  auto token = std::make_shared<std::atomic_bool>(false);
++  std::weak_ptr<IAssetAccessor> weakAccessor;
++  auto input = [&]() {
++    std::shared_ptr<IAssetAccessor> accessor =
++        std::make_shared<SimpleAssetAccessor>(
++            std::map<std::string, std::shared_ptr<SimpleAssetRequest>>{});
++    weakAccessor = accessor;
++    TilesetContentOptions options;
++    options.requestOptions.pCancellationToken = token;
++    options.pSharedAssetAccessor = accessor;
++    return TileLoadInput(tile, options, asyncSystem, accessor, logger, headers);
++  }();
++  CHECK_FALSE(weakAccessor.expired());
++  CHECK(input.pAssetAccessor == weakAccessor.lock());
++  auto copy = input;
++  auto gltfOptions = copy.contentOptions.toGltfReaderOptions();
++  CHECK(gltfOptions.pSharedAssetAccessor == input.pAssetAccessor);
++  CHECK_FALSE(gltfOptions.requestOptions.isCancellationRequested());
++  token->store(true);
++  CHECK(gltfOptions.requestOptions.isCancellationRequested());
++}
++
+ namespace {
+ std::filesystem::path testDataPath = Cesium3DTilesSelection_TEST_DATA_DIR;
+ 
+diff --git a/CesiumGltfReader/include/CesiumGltfReader/GltfReader.h b/CesiumGltfReader/include/CesiumGltfReader/GltfReader.h
+index 8592d04..f7fd776 100644
+--- a/CesiumGltfReader/include/CesiumGltfReader/GltfReader.h
++++ b/CesiumGltfReader/include/CesiumGltfReader/GltfReader.h
+@@ -76,6 +76,19 @@ struct CESIUMGLTFREADER_API MeshPrimitiveModeOptions {
+  * @brief Options for how to read a glTF.
+  */
+ struct CESIUMGLTFREADER_API GltfReaderOptions {
++  /**
++   * @brief Per-load cancellation. A canceled read rejects its future instead
++   * of reporting missing external data as corrupt glTF content.
++   */
++  CesiumAsync::AssetRequestOptions requestOptions;
++
++  /**
++   * @brief Accessor without this load's cancellation scope, used only for
++   * depot-owned images and schemas that may have other live consumers.
++   * If unset, the supplied accessor is used as before.
++   */
++  std::shared_ptr<CesiumAsync::IAssetAccessor> pSharedAssetAccessor;
++
+   /**
+    * @brief Whether data URLs in buffers and images should be automatically
+    * decoded as part of the load process.
+diff --git a/CesiumGltfReader/src/GltfReader.cpp b/CesiumGltfReader/src/GltfReader.cpp
+index c0ad2a4..7e951af 100644
+--- a/CesiumGltfReader/src/GltfReader.cpp
++++ b/CesiumGltfReader/src/GltfReader.cpp
+@@ -48,6 +48,7 @@
+ #include <optional>
+ #include <span>
+ #include <sstream>
++#include <stdexcept>
+ #include <string>
+ #include <string_view>
+ #include <utility>
+@@ -255,7 +256,16 @@ GltfReaderResult readBinaryGltf(
+   return result;
+ }
+ 
++void throwIfCanceled(const GltfReaderOptions& options) {
++  if (options.requestOptions.isCancellationRequested()) {
++    // This is control flow, not malformed content. TilesetContentManager owns
++    // the token and returns the tile to Unloaded without an error callback.
++    throw std::runtime_error("glTF load canceled");
++  }
++}
++
+ void postprocess(GltfReaderResult& readGltf, const GltfReaderOptions& options) {
++  throwIfCanceled(options);
+   if (!readGltf.model) {
+     return;
+   }
+@@ -534,6 +544,8 @@ void CesiumGltfReader::GltfReader::postprocessGltf(
+     const GltfReaderOptions& options,
+     GltfReaderResult&& result) {
+ 
++  throwIfCanceled(options);
++
+   // TODO: Can we avoid this copy conversion?
+   std::vector<IAssetAccessor::THeader> tHeaders(headers.begin(), headers.end());
+ 
+@@ -657,7 +669,9 @@ void CesiumGltfReader::GltfReader::postprocessGltf(
+             return options.pSharedAssetSystem->pImage->getOrCreate(
+                 SharedAssetContext{
+                     .asyncSystem = asyncSystem,
+-                    .pAssetAccessor = pAssetAccessor},
++                    .pAssetAccessor = options.pSharedAssetAccessor
++                                          ? options.pSharedAssetAccessor
++                                          : pAssetAccessor},
+                 assetKey);
+           }
+         };
+@@ -705,7 +719,9 @@ void CesiumGltfReader::GltfReader::postprocessGltf(
+         return options.pSharedAssetSystem->pExternalMetadataSchema->getOrCreate(
+             SharedAssetContext{
+                 .asyncSystem = asyncSystem,
+-                .pAssetAccessor = pAssetAccessor},
++                .pAssetAccessor = options.pSharedAssetAccessor
++                                      ? options.pSharedAssetAccessor
++                                      : pAssetAccessor},
+             assetKey);
+       }
+     };
+@@ -732,8 +748,12 @@ void CesiumGltfReader::GltfReader::postprocessGltf(
+ 
+   return asyncSystem.all(std::move(resolvedBuffers))
+       .thenInWorkerThread(
+-          [pResult = std::move(pResult)](
++          [pResult = std::move(pResult), options](
+               std::vector<ExternalBufferLoadResult>&& loadResults) {
++            // Shared asset depots turn rejected requests into error
++            // results. Check before interpreting those or decoding absent
++            // image bytes; cancellation must not masquerade as corrupt PNGs.
++            throwIfCanceled(options);
+             for (auto& bufferResult : loadResults) {
+               if (!bufferResult.success) {
+                 pResult->warnings.push_back(
+diff --git a/CesiumGltfReader/test/TestGltfCancellation.cpp b/CesiumGltfReader/test/TestGltfCancellation.cpp
+new file mode 100644
+index 0000000..7b17028
+--- /dev/null
++++ b/CesiumGltfReader/test/TestGltfCancellation.cpp
+@@ -0,0 +1,169 @@
++#include <CesiumAsync/AsyncSystem.h>
++#include <CesiumAsync/Promise.h>
++#include <CesiumGltfReader/GltfReader.h>
++#include <CesiumNativeTests/SimpleAssetAccessor.h>
++#include <CesiumNativeTests/SimpleAssetRequest.h>
++#include <CesiumNativeTests/SimpleAssetResponse.h>
++#include <CesiumNativeTests/SimpleTaskProcessor.h>
++#include <CesiumNativeTests/readFile.h>
++#include <CesiumNativeTests/waitForFuture.h>
++
++#include <doctest/doctest.h>
++
++#include <atomic>
++#include <filesystem>
++#include <functional>
++#include <optional>
++#include <stdexcept>
++#include <string>
++
++using namespace CesiumAsync;
++using namespace CesiumGltfReader;
++using namespace CesiumNativeTests;
++
++namespace {
++CesiumUtility::IntrusivePointer<GltfSharedAssetSystem> imageDepot() {
++  CesiumUtility::IntrusivePointer<GltfSharedAssetSystem> result =
++      new GltfSharedAssetSystem();
++  result->pImage.emplace(std::function(
++      [](const SharedAssetContext& context,
++         const NetworkImageAssetDescriptor& key) {
++        return key.load(context.asyncSystem, context.pAssetAccessor);
++      }));
++  return result;
++}
++
++class PendingImageAccessor : public SimpleAssetAccessor {
++public:
++  PendingImageAccessor() : SimpleAssetAccessor({}) {}
++
++  Future<std::shared_ptr<IAssetRequest>> get(
++      const AsyncSystem& asyncSystem,
++      const std::string& url,
++      const std::vector<THeader>&) override {
++    ++requests;
++    requestedUrl = url;
++    pending = asyncSystem.createPromise<std::shared_ptr<IAssetRequest>>();
++    return pending->getFuture();
++  }
++
++  void resolve(bool valid = true) {
++    REQUIRE(pending);
++    auto bytes = valid
++                     ? readFile(
++                           std::filesystem::path(CesiumGltfReader_TEST_DATA_DIR) /
++                           "DracoCompressed/CesiumMilkTruck.png")
++                     : std::vector<std::byte>{std::byte{0x01}};
++    pending->resolve(std::make_shared<SimpleAssetRequest>(
++        "GET",
++        requestedUrl,
++        HttpHeaders{},
++        std::make_unique<SimpleAssetResponse>(
++            200, "image/png", HttpHeaders{}, bytes)));
++    pending.reset();
++  }
++
++  int requests = 0;
++  std::string requestedUrl;
++  std::optional<Promise<std::shared_ptr<IAssetRequest>>> pending;
++};
++
++Future<GltfReaderResult> readImage(
++    const AsyncSystem& asyncSystem,
++    const std::shared_ptr<IAssetAccessor>& accessor,
++    const GltfReaderOptions& options) {
++  static const std::string json =
++      R"({"asset":{"version":"2.0"},"images":[{"uri":"texture.png","mimeType":"image/png"}]})";
++  return GltfReader().readGltfAndExternalData(
++      std::as_bytes(std::span(json.data(), json.size())),
++      asyncSystem,
++      HttpHeaders{},
++      accessor,
++      "https://cancellation.test/tile.gltf",
++      options);
++}
++} // namespace
++
++TEST_CASE("glTF cancellation is not image corruption") {
++  AsyncSystem asyncSystem(std::make_shared<SimpleTaskProcessor>());
++  auto accessor = std::make_shared<PendingImageAccessor>();
++  auto token = std::make_shared<std::atomic_bool>(false);
++  GltfReaderOptions options;
++  // Exercise the depot's exception-to-ErrorList conversion that previously
++  // caused canceled requests to be decoded as corrupt images.
++  options.pSharedAssetSystem = imageDepot();
++  options.requestOptions.pCancellationToken = token;
++
++  auto canceled = readImage(asyncSystem, accessor, options);
++  REQUIRE(accessor->pending);
++  token->store(true);
++  accessor->pending->reject(
++      std::runtime_error("GET request canceled before decompression"));
++  CHECK_THROWS_WITH(
++      waitForFuture(asyncSystem, std::move(canceled)), "glTF load canceled");
++
++  // A fresh attempt must still load the same image successfully.
++  options.requestOptions.pCancellationToken =
++      std::make_shared<std::atomic_bool>(false);
++  auto retry = readImage(asyncSystem, accessor, options);
++  accessor->resolve();
++  auto result = waitForFuture(asyncSystem, std::move(retry));
++  REQUIRE(result.model);
++  CHECK(result.errors.empty());
++  CHECK(result.warnings.empty());
++  REQUIRE(result.model->images.size() == 1);
++  CHECK(result.model->images[0].pAsset != nullptr);
++}
++
++TEST_CASE("glTF cancellation does not poison shared image consumers") {
++  AsyncSystem asyncSystem(std::make_shared<SimpleTaskProcessor>());
++  auto privateAccessor = std::make_shared<PendingImageAccessor>();
++  auto sharedAccessor = std::make_shared<PendingImageAccessor>();
++  auto token = std::make_shared<std::atomic_bool>(false);
++  GltfReaderOptions options;
++  options.requestOptions.pCancellationToken = token;
++  options.pSharedAssetAccessor = sharedAccessor;
++  options.pSharedAssetSystem = imageDepot();
++
++  auto canceled = readImage(asyncSystem, privateAccessor, options);
++  GltfReaderOptions otherOptions = options;
++  otherOptions.requestOptions.pCancellationToken =
++      std::make_shared<std::atomic_bool>(false);
++  auto live = readImage(asyncSystem, privateAccessor, otherOptions);
++  CHECK(privateAccessor->requests == 0);
++  CHECK(sharedAccessor->requests == 1);
++
++  token->store(true);
++  sharedAccessor->resolve();
++  CHECK_THROWS_WITH(
++      waitForFuture(asyncSystem, std::move(canceled)), "glTF load canceled");
++  auto result = waitForFuture(asyncSystem, std::move(live));
++  REQUIRE(result.model);
++  CHECK(result.errors.empty());
++  CHECK(result.warnings.empty());
++  CHECK(result.model->images[0].pAsset != nullptr);
++}
++
++TEST_CASE("uncanceled corrupt glTF images still report errors") {
++  AsyncSystem asyncSystem(std::make_shared<SimpleTaskProcessor>());
++  auto accessor = std::make_shared<PendingImageAccessor>();
++  GltfReaderOptions options;
++  options.pSharedAssetSystem = nullptr;
++  auto future = readImage(asyncSystem, accessor, options);
++  accessor->resolve(false);
++  auto result = waitForFuture(asyncSystem, std::move(future));
++  CHECK_FALSE(result.errors.empty());
++  CHECK_FALSE(result.warnings.empty());
++}
++
++TEST_CASE("canceled glTF postprocessing never decodes missing image data") {
++  GltfReaderOptions options;
++  options.requestOptions.pCancellationToken =
++      std::make_shared<std::atomic_bool>(true);
++  GltfReaderResult result;
++  result.model.emplace();
++  result.model->images.emplace_back().mimeType = "image/png";
++  CHECK_THROWS_WITH(
++      GltfReader().postprocessGltf(result, options), "glTF load canceled");
++  CHECK(result.errors.empty());
++}
+-- 
+2.53.0

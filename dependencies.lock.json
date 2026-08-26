@@ -26,7 +26,7 @@
       "ref": "v0.63.0",
       "base_commit": "b4137763914820b01a42b52ee886a55b036cd6ac",
       "base_tree": "453e4549732ba163ac8ad05c884fb5cae2fe556d",
-      "patched_tree": "d747a8b4e00f9952ec2abc9e2196a91e824175b3",
+      "patched_tree": "21f976c3590294e68f4312bb413bfcc4bd974be7",
       "patches": [
         {
           "path": "dependencies/cesium-native-patches/0001-Resume-renderer-preparation-across-frames.patch",
@@ -79,6 +79,10 @@
         {
           "path": "dependencies/cesium-native-patches/0013-Initialize-incremental-renderer-test-tilesets.patch",
           "sha256": "909969e40631ca8382bb8611e1d9781e47a10f48314f86e5ac7a1b25d329026a"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0014-Keep-glTF-cancellation-out-of-asset-errors-and-shared-fetches.patch",
+          "sha256": "7236115ffce61b28f3f2bb247cf1f42cb72f4de5039bc5c4d60d6e776ef7eb41"
         }
       ]
     },
