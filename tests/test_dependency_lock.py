@@ -57,10 +57,10 @@ class DependencyLockTests(unittest.TestCase):
 
     def test_native_patch_series_is_ordered_and_complete(self) -> None:
         patches = self.lock["dependencies"]["cesium_native"]["patches"]
-        self.assertEqual(len(patches), 13)
+        self.assertEqual(len(patches), 14)
         self.assertEqual(
             [Path(entry["path"]).name[:4] for entry in patches],
-            [f"{index:04d}" for index in range(1, 14)],
+            [f"{index:04d}" for index in range(1, 15)],
         )
         native = self.lock["dependencies"]["cesium_native"]
         self.assertEqual(native["ref"], "v0.63.0")

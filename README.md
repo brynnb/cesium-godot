@@ -3,7 +3,9 @@
 Cesium for Godot is an alpha-stage unofficial Godot 4 GDExtension for streaming,
 rendering, and interacting with [3D Tiles](https://www.ogc.org/standard/3dtiles/).
 It is built on [Cesium Native](https://github.com/CesiumGS/cesium-native) and is
-focused on a capable, reusable runtime integration for Godot. It is has been tested against my single project/use case and works decently well, but will hopefully soon have much more development, testing, and bug fixing. 
+focused on a capable, reusable runtime integration for Godot. It has been
+exercised extensively in one large Linux project, but remains alpha software;
+broader project, platform, and content coverage is still needed.
 
 This project builds on
 [3D Tiles for Godot](https://github.com/Battle-Road-Labs/3D-Tiles-For-Godot)
@@ -25,8 +27,8 @@ Cesium GS or Godot Engine product and is not endorsed by either organization.
 - Godot collision, picking, bounding-volume queries, structural metadata,
   feature styling, point and line rendering, and GPU instancing.
 - Multi-camera selection, movement-aware prefetching, LOD transitions,
-  tile-lifecycle callbacks, custom material hooks, credits, and streaming
-  diagnostics.
+  tile-lifecycle callbacks, application material and texture hooks, credits,
+  and streaming diagnostics.
 - Request headers, retries, cancellation, persistent HTTP caching, and
   hardware-informed runtime budgets.
 

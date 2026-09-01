@@ -43,6 +43,8 @@ Native APIs are not a supported compatibility target.
   image usage for each replacement.
 - Initialize the secondary asynchronous tilesets in Native's incremental
   renderer tests before their roots are inspected.
+- Keep cancellation out of glTF asset-error reporting while allowing
+  depot-owned image and schema fetches to complete safely for other consumers.
 
 Two changes formerly carried downstream are present upstream in v0.63.0 and
 are deliberately no longer patched here: external glTF buffers resolve before
@@ -64,7 +66,7 @@ while retaining the standalone exception contract.
 
 ## Durable patch and build contract
 
-These changes no longer depend on the development-only checkout path. The 13
+These changes no longer depend on the development-only checkout path. The 14
 patches are preserved as an ordered, SHA-256-locked mail patch series under
 `dependencies/cesium-native-patches`. The bootstrap starts from the exact
 v0.63.0 commit, applies that series, and requires the final Git tree recorded
