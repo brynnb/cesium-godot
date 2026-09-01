@@ -51,9 +51,25 @@ class DependencyLockTests(unittest.TestCase):
             self.assertEqual(sha256(path), expected_hash, relative_path)
 
     def test_hash_locked_text_inputs_have_stable_checkout_line_endings(self) -> None:
-        attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
-        for relative_path in self.lock["dependencies"]["mikktspace"]["files"]:
-            self.assertIn(f"{relative_path} text eol=lf", attributes)
+        dependencies = self.lock["dependencies"]
+        locked_text_paths = [
+            entry["path"] for entry in dependencies["cesium_native"]["patches"]
+        ]
+        locked_text_paths.extend(dependencies["mikktspace"]["files"])
+        result = subprocess.run(
+            ["git", "check-attr", "text", "eol", "--", *locked_text_paths],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        attributes: dict[tuple[str, str], str] = {}
+        for line in result.stdout.splitlines():
+            path, attribute, value = line.split(": ", 2)
+            attributes[(path, attribute)] = value
+        for relative_path in locked_text_paths:
+            self.assertEqual(attributes[(relative_path, "text")], "set")
+            self.assertEqual(attributes[(relative_path, "eol")], "lf")
 
     def test_native_patch_series_is_ordered_and_complete(self) -> None:
         patches = self.lock["dependencies"]["cesium_native"]["patches"]
