@@ -54,7 +54,7 @@ generated files are kept in the ignored `build/` directory, while the packaged
 addon is written to `godot3dtiles/addons/cesium_godot/`.
 
 See the [reproducible build guide](docs/REPRODUCIBLE_BUILDS.md) for supported
-platforms, dependency overrides, cleanup, and double-precision builds.
+platforms, dependency overrides, and cleanup.
 
 ## Using the addon
 

@@ -49,12 +49,6 @@ jobs:
             arch: x64
             precision: single
             artifact: godot3dtiles-windows-x86_64
-          - name: Windows x86_64 double precision
-            os: windows-2022
-            platform: windows
-            arch: x64
-            precision: double
-            artifact: godot3dtiles-windows-x86_64-double
           - name: macOS 15 arm64
             os: macos-15
             platform: macos

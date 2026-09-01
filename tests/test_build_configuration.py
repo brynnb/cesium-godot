@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import importlib.util
+import contextlib
+import io
 from pathlib import Path
 import unittest
 
@@ -31,12 +33,6 @@ class BuildConfigurationTests(unittest.TestCase):
             ).name,
             "libGodot3DTiles.linux.template_debug.x86_64.so",
         )
-        self.assertEqual(
-            BUILD_EXTENSION._expected_output(
-                "linux", "x64", "template_release", "double"
-            ).name,
-            "libGodot3DTiles.linux.template_release.double.x86_64.so",
-        )
 
     def test_ci_matrix_covers_supported_artifacts_and_current_runtime(self) -> None:
         workflow = (ROOT / ".github/workflows/build-matrix.yml").read_text(
@@ -46,13 +42,13 @@ class BuildConfigurationTests(unittest.TestCase):
             "ubuntu-24.04",
             "windows-2022",
             "macos-15",
-            "precision: double",
             "Godot_v4.6.3-stable_linux.x86_64.zip",
             "tools/bootstrap_dependencies.py --verify-only",
             "undefined symbol:",
         ):
             self.assertIn(required, workflow)
         self.assertNotIn("Godot_v4.2.2", workflow)
+        self.assertNotIn("precision: double", workflow)
 
     def test_windows_static_link_closure_matches_current_dependencies(self) -> None:
         build = (ROOT / "cesium_godot/SCsub").read_text(encoding="utf-8")
@@ -66,9 +62,17 @@ class BuildConfigurationTests(unittest.TestCase):
             '"absl_utf8_for_code_point"',
             '"absl_tracing_internal"',
             '"zs"',
+            '"libcrypto"',
+            '"iphlpapi"',
+            '"secur32"',
         ):
             self.assertIn(required, windows)
         self.assertNotIn('"zlib",', windows)
+
+    def test_only_the_locked_single_precision_godot_abi_is_buildable(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                BUILD_EXTENSION.parse_arguments(["--precision", "double"])
 
     def test_default_generated_data_is_inside_visible_build_directory(self) -> None:
         build_root = ROOT / "build"

@@ -68,7 +68,12 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
         "--platform", choices=("linux", "windows", "macos"), default=default_platform
     )
     parser.add_argument("--arch", default=default_arch)
-    parser.add_argument("--precision", choices=("single", "double"), default="single")
+    parser.add_argument(
+        "--precision",
+        choices=("single",),
+        default="single",
+        help="Godot 4.6.3 single precision; the only ABI locked and distributed by this repository",
+    )
     parser.add_argument(
         "--target",
         choices=("editor", "template_debug", "template_release"),
@@ -123,8 +128,6 @@ def main(arguments: Sequence[str] | None = None) -> int:
         f"target={args.target}",
         f"buildCesium={'no' if args.skip_native else 'yes'}",
     ]
-    if args.precision == "double":
-        command.append("precision=double")
     _run(command, environment)
 
     output = _expected_output(

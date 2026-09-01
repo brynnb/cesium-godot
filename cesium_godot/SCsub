@@ -229,6 +229,11 @@ libraries = [
 
 if (os.name == cesium_build_utils.OS_WIN):
     libraries.extend([
+        # Static OpenSSL and libcurl do not carry these Windows dependencies
+        # transitively when the GDExtension is linked with MSVC.
+        "libcrypto",
+        "iphlpapi",
+        "secur32",
         "absl_base",
         "absl_city",
         "absl_civil_time",

@@ -30,8 +30,6 @@ python3 tools/build_extension.py --verify-only
 # Re-link after an already successful Native build.
 python3 tools/build_extension.py --skip-native --jobs 12
 
-# Build the double-precision extension ABI.
-python3 tools/build_extension.py --precision double --jobs 12
 ```
 
 The supported build hosts/targets are Linux x86_64, Windows x86_64, and macOS

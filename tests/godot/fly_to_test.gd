@@ -211,6 +211,9 @@ func _run() -> void:
 	):
 		_fail("Could not start an automatically updated flight")
 		return
+	# `process_frame` is emitted before Node._process. Wait once to enter the
+	# next frame and once more for the automatic process callback to run.
+	await process_frame
 	await process_frame
 	if completed_count != 3 or fly.is_flight_in_progress():
 		_fail("Automatic process advancement did not complete the flight")
