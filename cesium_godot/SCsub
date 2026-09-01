@@ -234,6 +234,7 @@ if (os.name == cesium_build_utils.OS_WIN):
         "libcrypto",
         "iphlpapi",
         "secur32",
+        "user32",
         "absl_base",
         "absl_city",
         "absl_civil_time",

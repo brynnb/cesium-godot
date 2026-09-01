@@ -65,6 +65,7 @@ class BuildConfigurationTests(unittest.TestCase):
             '"libcrypto"',
             '"iphlpapi"',
             '"secur32"',
+            '"user32"',
         ):
             self.assertIn(required, windows)
         self.assertNotIn('"zlib",', windows)
