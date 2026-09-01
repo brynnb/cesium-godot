@@ -100,6 +100,23 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertIn("-disableMetrics", bootstrap)
         self.assertIn('"version"', bootstrap)
 
+    def test_direct_vcpkg_link_dependencies_are_installed(self) -> None:
+        build_utils = (ROOT / "CesiumBuildUtils.py").read_text(encoding="utf-8")
+        installer = build_utils[
+            build_utils.index("def install_additional_libs") :
+            build_utils.index("def find_ezvcpkg_path")
+        ]
+        for package in ("uriparser", "ada-url", "brotli"):
+            self.assertIn(f'f"{package}:{{triplet}}"', installer)
+
+    def test_windows_ci_uses_a_short_vcpkg_root(self) -> None:
+        workflow = (ROOT / ".github/workflows/build-matrix.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"CESIUM_GODOT_VCPKG_ROOT=$env:RUNNER_TEMP/cg-vcpkg"', workflow)
+        self.assertIn("runner.temp", workflow)
+        self.assertIn("cg-vcpkg", workflow)
+
     def test_linux_static_archive_uses_a_response_file_when_needed(self) -> None:
         orchestrator = (ROOT / "SConstruct.py").read_text(encoding="utf-8")
         self.assertIn('if env["platform"] == "linux":', orchestrator)

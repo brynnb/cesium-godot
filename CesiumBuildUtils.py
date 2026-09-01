@@ -387,17 +387,23 @@ def install_additional_libs():
     vcpkgPath = find_ezvcpkg_path()
     execExtension = ".exe" if os.name == OS_WIN else ""
     executable = "%s/%s" % (vcpkgPath, "vcpkg" + execExtension)
+    triplet = determine_triplet()
+    # These libraries are linked directly by the standalone GDExtension rather
+    # than transitively through Cesium Native's CMake targets. Install every
+    # direct link dependency explicitly so a clean vcpkg checkout is sufficient.
     subprocess.run(
-        [executable, "install", "uriparser:%s" % (determine_triplet())],
-        check=True,
-    )
-    subprocess.run(
-        [executable, "install", "ada-url:%s" % (determine_triplet())],
+        [
+            executable,
+            "install",
+            f"uriparser:{triplet}",
+            f"ada-url:{triplet}",
+            f"brotli:{triplet}",
+        ],
         check=True,
     )
     if os.name == OS_WIN:
         subprocess.run(
-            [executable, "install", "curl:%s" % (determine_triplet())],
+            [executable, "install", f"curl:{triplet}"],
             check=True,
         )
 

@@ -50,7 +50,7 @@ index cd36054..cd19993 100644
  namespace Cesium3DTilesSelection {
  
  class ITileExcluder;
-+class TileLoadFailureDetails;
++struct TileLoadFailureDetails;
  class TilesetLoadFailureDetails;
  
  /**

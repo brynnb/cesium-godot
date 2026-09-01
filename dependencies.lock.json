@@ -26,7 +26,7 @@
       "ref": "v0.63.0",
       "base_commit": "b4137763914820b01a42b52ee886a55b036cd6ac",
       "base_tree": "453e4549732ba163ac8ad05c884fb5cae2fe556d",
-      "patched_tree": "21f976c3590294e68f4312bb413bfcc4bd974be7",
+      "patched_tree": "af018a469b044f1100b5e437b26cf9c262b859b6",
       "patches": [
         {
           "path": "dependencies/cesium-native-patches/0001-Resume-renderer-preparation-across-frames.patch",
@@ -38,7 +38,7 @@
         },
         {
           "path": "dependencies/cesium-native-patches/0003-Expose-terminal-tile-load-failures.patch",
-          "sha256": "67452b5dae6bb47f0572d1f5ef67f7ec66f28f2f29063323a42fd396ab5a1d2b"
+          "sha256": "126585379e84b336e40c3c0eb13085a4663ff3fcd1fa992b1f5e8550962c6ae1"
         },
         {
           "path": "dependencies/cesium-native-patches/0004-Render-ready-descendants-under-empty-additive-tiles.patch",
