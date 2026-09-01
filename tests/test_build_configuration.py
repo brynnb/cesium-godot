@@ -19,6 +19,15 @@ SPEC.loader.exec_module(BUILD_EXTENSION)
 
 
 class BuildConfigurationTests(unittest.TestCase):
+    def test_lifecycle_demo_registers_the_extension_on_a_clean_checkout(self) -> None:
+        extension_list = (
+            ROOT / "examples/lifecycle_material_demo/.godot/extension_list.cfg"
+        )
+        self.assertEqual(
+            extension_list.read_text(encoding="utf-8"),
+            "res://Godot3DTiles.gdextension\n",
+        )
+
     def test_expected_artifact_names_match_gdextension_manifest(self) -> None:
         expected = {
             ("linux", "x64"): "libGodot3DTiles.linux.template_release.x86_64.so",

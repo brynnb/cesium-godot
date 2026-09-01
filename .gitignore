@@ -53,6 +53,9 @@ tests/godot/**/*.import
 
 # Example projects generate the same ordinary Godot import/user-data folders.
 examples/**/.godot/
+!examples/lifecycle_material_demo/.godot/
+examples/lifecycle_material_demo/.godot/*
+!examples/lifecycle_material_demo/.godot/extension_list.cfg
 examples/**/.test-user-data/
 examples/**/*.uid
 examples/**/*.import
