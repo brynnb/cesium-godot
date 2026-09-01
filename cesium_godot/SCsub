@@ -424,6 +424,8 @@ elif sys.platform == cesium_build_utils.PLATFORM_MACOS:
     # Link against macOS frameworks and force-load litehtml to resolve internal dependencies
     env.Append(LINKFLAGS=[
         "-framework", "CoreFoundation",
+        # cpp-httplib's timed DNS resolver uses CFHost from CFNetwork.
+        "-framework", "CFNetwork",
         "-framework", "Security",
         "-framework", "SystemConfiguration",
         # Force load all symbols from litehtml - needed for internal archive dependencies

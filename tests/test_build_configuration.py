@@ -106,6 +106,9 @@ class BuildConfigurationTests(unittest.TestCase):
             build_utils.index("def install_additional_libs") :
             build_utils.index("def find_ezvcpkg_path")
         ]
+        self.assertIn('f"--x-manifest-root={get_root_dir_native()}"', installer)
+        self.assertIn('f"--x-install-root={installed_root}"', installer)
+        self.assertIn('f"--triplet={triplet}"', installer)
         for package in ("uriparser", "ada-url", "abseil", "brotli"):
             self.assertIn(f'f"{package}:{{triplet}}"', installer)
 
@@ -120,6 +123,8 @@ class BuildConfigurationTests(unittest.TestCase):
             "absl_string_view",
         ):
             self.assertNotIn(f'"{obsolete_library}"', extension_build)
+
+        self.assertIn('"-framework", "CFNetwork"', extension_build)
 
     def test_native_patches_avoid_msvc_shadow_errors(self) -> None:
         cancellation_patch = (

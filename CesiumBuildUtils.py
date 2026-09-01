@@ -388,9 +388,24 @@ def install_additional_libs():
     execExtension = ".exe" if os.name == OS_WIN else ""
     executable = "%s/%s" % (vcpkgPath, "vcpkg" + execExtension)
     triplet = determine_triplet()
-    # These libraries are linked directly by the standalone GDExtension rather
-    # than transitively through Cesium Native's CMake targets. Install every
-    # direct link dependency explicitly so a clean vcpkg checkout is sufficient.
+    installed_root = os.path.join(vcpkgPath, "installed")
+    # Cesium Native's CMake build uses a private manifest install tree. SCons
+    # compiles the standalone GDExtension separately, so it must have the same
+    # complete manifest available in the shared include / library tree. Using
+    # Native's authoritative manifest prevents clean hosts from depending on
+    # packages left behind by an earlier build.
+    subprocess.run(
+        [
+            executable,
+            "install",
+            f"--x-manifest-root={get_root_dir_native()}",
+            f"--x-install-root={installed_root}",
+            f"--triplet={triplet}",
+        ],
+        check=True,
+    )
+    # These additional direct dependencies are not all top-level entries in
+    # Cesium Native's manifest, but the standalone extension links them by name.
     subprocess.run(
         [
             executable,
