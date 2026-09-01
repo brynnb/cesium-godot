@@ -109,6 +109,10 @@ class BuildConfigurationTests(unittest.TestCase):
         for package in ("uriparser", "ada-url", "brotli"):
             self.assertIn(f'f"{package}:{{triplet}}"', installer)
 
+        extension_build = (ROOT / "cesium_godot/SCsub").read_text(encoding="utf-8")
+        self.assertIn('find_ezvcpkg_package_lib_path("abseil")', extension_build)
+        self.assertNotIn('get_native_build_root() + "/libs/absl"', extension_build)
+
     def test_windows_ci_uses_a_short_vcpkg_root(self) -> None:
         workflow = (ROOT / ".github/workflows/build-matrix.yml").read_text(
             encoding="utf-8"
