@@ -229,9 +229,6 @@ libraries = [
 
 if (os.name == cesium_build_utils.OS_WIN):
     libraries.extend([
-        "absl_bad_any_cast_impl",
-        "absl_bad_optional_access",
-        "absl_bad_variant_access",
         "absl_base",
         "absl_city",
         "absl_civil_time",
@@ -292,7 +289,6 @@ if (os.name == cesium_build_utils.OS_WIN):
         "absl_random_distributions",
         "absl_random_internal_distribution_test_util",
         "absl_random_internal_platform",
-        "absl_random_internal_pool_urbg",
         "absl_random_internal_randen",
         "absl_random_internal_randen_hwaes",
         "absl_random_internal_randen_hwaes_impl",
@@ -311,7 +307,6 @@ if (os.name == cesium_build_utils.OS_WIN):
         "absl_strerror",
         "absl_strings",
         "absl_strings_internal",
-        "absl_string_view",
         "absl_str_format_internal",
         "absl_symbolize",
         "absl_synchronization",
@@ -334,9 +329,6 @@ elif sys.platform == cesium_build_utils.PLATFORM_MACOS:
         "z-ng",
         "liblibmodpbase64",
         # Abseil libraries (required by s2 geometry)
-        "absl_bad_any_cast_impl",
-        "absl_bad_optional_access",
-        "absl_bad_variant_access",
         "absl_base",
         "absl_city",
         "absl_civil_time",
@@ -397,7 +389,6 @@ elif sys.platform == cesium_build_utils.PLATFORM_MACOS:
         "absl_random_distributions",
         "absl_random_internal_distribution_test_util",
         "absl_random_internal_platform",
-        "absl_random_internal_pool_urbg",
         "absl_random_internal_randen",
         "absl_random_internal_randen_hwaes",
         "absl_random_internal_randen_hwaes_impl",
@@ -415,7 +406,6 @@ elif sys.platform == cesium_build_utils.PLATFORM_MACOS:
         "absl_statusor",
         "absl_str_format_internal",
         "absl_strerror",
-        "absl_string_view",
         "absl_strings",
         "absl_strings_internal",
         "absl_symbolize",

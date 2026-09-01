@@ -112,6 +112,15 @@ class BuildConfigurationTests(unittest.TestCase):
         extension_build = (ROOT / "cesium_godot/SCsub").read_text(encoding="utf-8")
         self.assertNotIn('get_native_build_root() + "/libs/absl"', extension_build)
 
+        for obsolete_library in (
+            "absl_bad_any_cast_impl",
+            "absl_bad_optional_access",
+            "absl_bad_variant_access",
+            "absl_random_internal_pool_urbg",
+            "absl_string_view",
+        ):
+            self.assertNotIn(f'"{obsolete_library}"', extension_build)
+
     def test_native_patches_avoid_msvc_shadow_errors(self) -> None:
         cancellation_patch = (
             ROOT
