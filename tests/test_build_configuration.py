@@ -106,12 +106,19 @@ class BuildConfigurationTests(unittest.TestCase):
             build_utils.index("def install_additional_libs") :
             build_utils.index("def find_ezvcpkg_path")
         ]
-        for package in ("uriparser", "ada-url", "brotli"):
+        for package in ("uriparser", "ada-url", "abseil", "brotli"):
             self.assertIn(f'f"{package}:{{triplet}}"', installer)
 
         extension_build = (ROOT / "cesium_godot/SCsub").read_text(encoding="utf-8")
-        self.assertIn('find_ezvcpkg_package_lib_path("abseil")', extension_build)
         self.assertNotIn('get_native_build_root() + "/libs/absl"', extension_build)
+
+    def test_native_patches_avoid_msvc_shadow_errors(self) -> None:
+        cancellation_patch = (
+            ROOT
+            / "dependencies/cesium-native-patches/0009-Cancel-stale-tile-requests-across-loading-stages.patch"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("+            auto asyncSystem = tileLoadInfo.asyncSystem;", cancellation_patch)
+        self.assertNotIn("+            auto tileAsyncSystem = tileLoadInfo.asyncSystem;", cancellation_patch)
 
     def test_windows_ci_uses_a_short_vcpkg_root(self) -> None:
         workflow = (ROOT / ".github/workflows/build-matrix.yml").read_text(

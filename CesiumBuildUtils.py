@@ -397,6 +397,7 @@ def install_additional_libs():
             "install",
             f"uriparser:{triplet}",
             f"ada-url:{triplet}",
+            f"abseil:{triplet}",
             f"brotli:{triplet}",
         ],
         check=True,
@@ -449,11 +450,6 @@ def find_ezvcpkg_include_path() -> str:
 
 def find_ezvcpkg_lib_path() -> str:
     return f"{find_ezvcpkg_path()}/installed/{determine_triplet()}/lib"
-
-
-def find_ezvcpkg_package_lib_path(package: str) -> str:
-    """Return a package archive directory not exported to vcpkg's installed tree."""
-    return f"{find_ezvcpkg_path()}/packages/{package}_{determine_triplet()}/lib"
 
 
 def get_root_dir() -> str:

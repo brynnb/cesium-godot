@@ -341,11 +341,10 @@ index 9f69156..8290a39 100644
                             TileLoadResult&& result) mutable {
          // the reason we run immediate continuation, instead of in the
          // worker thread, is that the loader may run the task in the main
-@@ -1324,18 +1398,27 @@ void TilesetContentManager::loadTileContent(
+@@ -1324,18 +1398,26 @@ void TilesetContentManager::loadTileContent(
          // worker thread if the content is a render content
          if (result.state == TileLoadResultState::Success) {
            if (std::holds_alternative<CesiumGltf::Model>(result.contentKind)) {
-+            auto asyncSystem = tileLoadInfo.asyncSystem;
 +            if (pCancellationToken->load(std::memory_order_relaxed)) {
 +              return asyncSystem.createResolvedFuture(
 +                  TileLoadResultAndRenderResources{

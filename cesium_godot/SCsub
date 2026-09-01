@@ -476,10 +476,7 @@ common_libpaths = [
     f"{root_dir_native}/CesiumGltfContent/{current_build_config}",
     f"{root_dir_native}/CesiumQuantizedMeshTerrain/{current_build_config}",
     f"{root_dir_native}/Cesium3DTilesContent/{current_build_config}",
-    cesium_build_utils.find_ezvcpkg_lib_path(),
-    # ezvcpkg's Abseil build is consumed by Native in place and is not copied
-    # into the ordinary installed tree on every platform (notably macOS).
-    cesium_build_utils.find_ezvcpkg_package_lib_path("abseil")
+    cesium_build_utils.find_ezvcpkg_lib_path()
 ]
 
 # Add litehtml path (macOS uses its own path added earlier, others use base path)

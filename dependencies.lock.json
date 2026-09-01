@@ -26,7 +26,7 @@
       "ref": "v0.63.0",
       "base_commit": "b4137763914820b01a42b52ee886a55b036cd6ac",
       "base_tree": "453e4549732ba163ac8ad05c884fb5cae2fe556d",
-      "patched_tree": "af018a469b044f1100b5e437b26cf9c262b859b6",
+      "patched_tree": "ff56b957466b3626f99623a5fa6599fd31a99ca8",
       "patches": [
         {
           "path": "dependencies/cesium-native-patches/0001-Resume-renderer-preparation-across-frames.patch",
@@ -62,7 +62,7 @@
         },
         {
           "path": "dependencies/cesium-native-patches/0009-Cancel-stale-tile-requests-across-loading-stages.patch",
-          "sha256": "05af0c5a77f89fd6b1cf6fc3e03c4baae342635344a12bf3d786a833e6511267"
+          "sha256": "3dfec16fc39d023c6191e87065fc7de4e9126c46e26842e619fcde6f5e6194d5"
         },
         {
           "path": "dependencies/cesium-native-patches/0010-Allow-decorators-to-consume-Curl-cancellation.patch",
