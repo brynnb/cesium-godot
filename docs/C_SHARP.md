@@ -99,6 +99,8 @@ GODOT_DOTNET_BIN=/path/to/Godot_v4.6.3-stable_mono_linux.x86_64 \
   tests/run_csharp_tests.sh
 ```
 
-It compiles all committed wrappers, then verifies construction, properties,
-methods, numeric enum values, and signal subscription behavior inside a real
-headless Godot .NET process.
+It compiles all committed wrappers, then verifies construction across Godot
+node/resource base types; properties and methods; managed, typed, and untyped
+arrays; named and numeric enums; resource identity; signal subscription and
+extension-object arguments; `Callable` decision hooks; native `Error` results;
+and input validation inside a real headless Godot .NET process.
