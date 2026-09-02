@@ -32,7 +32,20 @@ fi
   --nologo --no-restore
 
 dotnet_dir="$(cd "$(dirname "${dotnet_bin}")" && pwd)"
-PATH="${dotnet_dir}:${PATH}" \
-XDG_DATA_HOME="${project_dir}/.test-user-data" \
-  "${godot_dotnet_bin}" --headless --path "${project_dir}" \
-    --script res://CSharpBindingSmoke.cs
+set +e
+test_output="$({
+  PATH="${dotnet_dir}:${PATH}" \
+  XDG_DATA_HOME="${project_dir}/.test-user-data" \
+    "${godot_dotnet_bin}" --headless --path "${project_dir}" \
+      --script res://CSharpBindingSmoke.cs
+} 2>&1)"
+godot_status=$?
+set -e
+printf '%s\n' "${test_output}"
+
+# The success marker also proves the asynchronous test reached completion;
+# process status alone cannot distinguish an early SceneTree shutdown.
+if [[ ${godot_status} -ne 0 || "${test_output}" != *"Cesium C# facade and local streaming integration tests passed"* ]]; then
+  echo "Cesium C# integration test did not reach its success marker." >&2
+  exit 1
+fi

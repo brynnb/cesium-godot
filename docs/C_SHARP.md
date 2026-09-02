@@ -103,4 +103,7 @@ It compiles all committed wrappers, then verifies construction across Godot
 node/resource base types; properties and methods; managed, typed, and untyped
 arrays; named and numeric enums; resource identity; signal subscription and
 extension-object arguments; `Callable` decision hooks; native `Error` results;
-and input validation inside a real headless Godot .NET process.
+and input validation inside a real headless Godot .NET process. The same test
+then streams the repository's local lifecycle tileset, checks primitive and
+tile signals, material selection, extras, statistics, initial readiness,
+visibility changes, unloading, and a terminal missing-source error.

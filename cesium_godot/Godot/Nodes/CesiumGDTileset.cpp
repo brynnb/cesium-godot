@@ -1987,6 +1987,16 @@ void Cesium3DTileset::update_tileset(const Transform3D& cameraTransform)
 			std::chrono::steady_clock::now() - loadTilesStart
 		).count()
 	);
+	// Initial loading is a one-way readiness latch for the current tileset
+	// instance. Selection may request more content later as the camera moves, but
+	// reaching 100% once means the first view was fully resolved. Source changes
+	// clear the latch in recreate_tileset().
+	if (
+		!this->m_initialLoadingFinished &&
+		this->m_activeTileset->computeLoadProgress() >= 100.0
+	) {
+		this->m_initialLoadingFinished = true;
+	}
 	this->capture_debug_tile_states(updateResult);
 	this->m_lastLodTransitionActiveTileCount = 0;
 	this->m_lastLodTransitionSupportedPrimitiveCount = 0;
