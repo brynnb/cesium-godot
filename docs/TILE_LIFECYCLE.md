@@ -274,6 +274,11 @@ to demonstrate visibility, and recreates the tileset to show detach/unload and
 reload ordering. Its `--smoke-test` mode requires every receiver hook before
 exiting successfully and is part of `tests/run_godot_tests.sh`.
 
+`tests/run_csharp_tests.sh` drives the same local lifecycle content through the
+generated C# facade. It verifies material selection, primitive and tile
+signals, extras, initial readiness, camera-driven visibility, unload ordering,
+wrapper invalidation, and terminal load-failure delivery in Godot 4.6.3 .NET.
+
 ## Design sources
 
 The API semantics are adapted from the Apache-2.0 Cesium for Unreal lifecycle

@@ -33,8 +33,8 @@ Cesium GS or Godot Engine product and is not endorsed by either organization.
 - Request headers, retries, cancellation, persistent HTTP caching, and
   hardware-informed runtime budgets.
 - A generated C# facade for the runtime API, included with the addon and tested
-  against the Godot 4.6.3 .NET runtime. GDScript remains supported directly
-  through the same underlying GDExtension API.
+  through real local-tile streaming on the Godot 4.6.3 .NET runtime. GDScript
+  remains supported directly through the same underlying GDExtension API.
 
 The integration currently targets Cesium Native 0.63.0 and Godot 4.6.3. Linux
 x86_64 is the primary tested platform; Windows x86_64 and macOS arm64 are part
@@ -62,9 +62,12 @@ platforms, dependency overrides, and cleanup.
 
 ## Using the addon
 
-After building, copy `godot3dtiles/addons/cesium_godot` into your Godot
+Download the archive for your platform from
+[GitHub Releases](https://github.com/brynnb/cesium-godot/releases), or build the
+addon from source. Copy the complete `cesium_godot` directory into your Godot
 project's `addons` directory, then enable **Cesium for Godot** in **Project >
-Project Settings > Plugins**.
+Project Settings > Plugins**. Keep the directory intact: the native library,
+GDScript support files, and generated C# facade are distributed together.
 
 The repository includes a
 [lifecycle and material example](examples/lifecycle_material_demo/README.md)
@@ -75,6 +78,26 @@ optional, small Godot engine API extension; the
 [occlusion guide](docs/OCCLUSION_CULLING.md) documents the required engine
 change, runtime behavior, fallback, hierarchy requirements, and tests.
 
+### C# projects
+
+The packaged addon includes generated wrappers under
+`addons/cesium_godot/csharp`; users do not run the generator. Use the Godot
+4.6.3 .NET runtime and add each wrapper's `NativeObject` to the scene tree:
+
+```csharp
+using CesiumForGodot;
+
+var tileset = new Cesium3DTileset
+{
+    Url = "https://example.com/tileset.json",
+    MaximumScreenSpaceError = 16.0f,
+};
+AddChild(tileset.NativeObject);
+```
+
+The [C# runtime guide](docs/C_SHARP.md) covers composition, signals,
+`Callable` decision hooks, generated-code maintenance, and integration tests.
+
 ## Testing
 
 After building the Linux extension, run:
@@ -84,8 +107,13 @@ tests/run_godot_tests.sh
 ```
 
 The test suite uses local fixtures and does not require Cesium ion credentials.
-The [C# guide](docs/C_SHARP.md) documents .NET usage and the separate headless
-C# smoke test.
+The separate C# integration fixture compiles the committed facade and streams
+real local 3D Tiles through a headless Godot .NET process:
+
+```bash
+GODOT_DOTNET_BIN=/path/to/Godot_v4.6.3-stable_mono_linux.x86_64 \
+  tests/run_csharp_tests.sh
+```
 
 ## Contributing
 

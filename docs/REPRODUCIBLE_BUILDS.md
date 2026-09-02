@@ -104,9 +104,11 @@ The normal test runner invokes it before runtime tests.
 
 `.github/workflows/build-matrix.yml` uses immutable action SHAs and fixed
 Ubuntu 24.04, Windows 2022, and macOS 15 arm64 runner labels. It builds Linux,
-Windows single/double precision, and macOS arm64 artifacts. Linux additionally
-runs Cesium Native tests, resolves the final shared library, and runs the full
-Godot suite on the documented Godot 4.6.3 runtime.
+Windows, and macOS arm64 single-precision artifacts. Linux additionally runs
+Cesium Native tests, resolves the final shared library, and runs the full Godot
+suite on the documented Godot 4.6.3 runtime. Double-precision builds remain a
+supported explicit build configuration, but are not currently part of the
+hosted matrix.
 
 The OS compiler and SDK are supplied by those versioned runner images. A
 runner-image refresh can still change patch-level system tools; the dependency

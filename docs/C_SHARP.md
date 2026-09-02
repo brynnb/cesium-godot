@@ -70,6 +70,18 @@ element type is a Cesium extension class are exposed as an untyped
 `Godot.Collections.Array`; individual elements can be wrapped through
 `Variant`.
 
+## Supported surface
+
+The committed facade contains wrappers for every registered Cesium runtime
+class. It forwards constructors, properties, methods, constants, enums, and
+signals from the loaded extension API. Ordinary Godot APIs remain available on
+`NativeObject`; the facade does not attempt to duplicate Godot's generated C#
+classes or Cesium Native in managed code.
+
+This is runtime language support, not a separate C# editor integration. The
+same experimental editor plugin and runtime feature set apply whether a project
+uses GDScript or C#.
+
 ## Maintainer workflow
 
 The generator is a pinned fork of
@@ -91,7 +103,7 @@ The command loads the real extension headlessly, reflects its API through
 `ClassDB`, rejects generator errors and an unexpected class count, and writes
 the deterministic result into the packaged addon.
 
-The optional runtime smoke test requires the Godot 4.6.3 .NET executable and a
+The runtime integration test requires the Godot 4.6.3 .NET executable and a
 .NET 8 SDK:
 
 ```bash
@@ -107,3 +119,9 @@ and input validation inside a real headless Godot .NET process. The same test
 then streams the repository's local lifecycle tileset, checks primitive and
 tile signals, material selection, extras, statistics, initial readiness,
 visibility changes, unloading, and a terminal missing-source error.
+
+The streaming portion is implemented in
+`tests/csharp/CSharpStreamingIntegrationTests.cs` and reuses
+`tests/godot/fixtures/lifecycle`, so the GDScript and C# boundaries are checked
+against the same real 3D Tiles content. The missing-source case deliberately
+prints a 404 error before the final success marker.

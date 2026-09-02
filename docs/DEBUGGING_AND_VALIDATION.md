@@ -151,3 +151,9 @@ specifically destroys diagnostic consumers during an active request, cancels
 in-flight and partially-realized work, validates unload callback order, tears
 down whole owner subtrees, forces tile-cache eviction, and verifies that the
 last shared texture/model lease releases its resources.
+
+`tests/run_csharp_tests.sh` is the corresponding Godot .NET boundary test. It
+compiles the committed generated facade and exercises its ordinary API plus
+real local streaming, lifecycle callbacks, visibility, unloading, and failure
+delivery. Set `GODOT_DOTNET_BIN` to the Godot 4.6.3 .NET executable before
+running it.

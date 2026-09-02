@@ -31,6 +31,12 @@ The time, cache, and cancellation properties update a live tileset. Changing
 `worker_thread_count` or either primitive cap recreates the Native tileset
 because its executor or renderer adapter is a lifetime dependency.
 
+`is_initial_loading_finished()` is a readiness latch for the current tileset
+generation. It becomes true the first time Cesium Native reports 100 percent
+load progress for the selected view and remains true while later camera motion
+requests more tiles. Recreating the tileset because its source or a
+generation-bound setting changed resets it to false.
+
 Main-thread preparation is resumable at Godot material/texture and mesh-surface
 boundaries. Each invocation realizes at least one whole step, then continues
 with additional small steps only while the remaining frame budget permits.
@@ -134,8 +140,10 @@ UI, logging, automated routes, and benchmark capture. It contains:
 - renderer state: `realized`, `visible`, `hidden`, `failed`, and cumulative
   `unloaded`;
 - Native state: `loaded`, `load_progress_percent`, `loaded_data_bytes`, and
-  `cache_limit_bytes`. Loaded data charges each per-tile buffer once and each
-  actively shared Native image once rather than once per placement;
+  `cache_limit_bytes`. `load_progress_percent` is the current view's dynamic
+  progress, unlike the one-way initial-readiness latch. Loaded data charges
+  each per-tile buffer once and each actively shared Native image once rather
+  than once per placement;
 - LOD policy: `maximum_screen_space_error`, `preload_ancestors`,
   `preload_siblings`, `loading_descendant_limit`, `forbid_holes`, opt-in
   transition settings, active transition/percentage state, and compatible or
