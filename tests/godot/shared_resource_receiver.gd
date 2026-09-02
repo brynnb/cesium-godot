@@ -9,6 +9,13 @@ var loaded_tiles: Array[Cesium3DTile] = []
 var unload_count := 0
 
 
+func _init() -> void:
+	material_selector = Callable(self, "_create_material")
+	material_customizing.connect(_customize_material)
+	tile_loaded.connect(_on_tile_loaded)
+	tile_unloading.connect(_on_tile_unloading)
+
+
 func _create_material(
 	_primitive: CesiumLoadedTilePrimitive,
 	default_material: Material

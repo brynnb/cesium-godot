@@ -6,6 +6,9 @@ const TIMEOUT_FRAMES := 360
 class TrackingReceiver extends Cesium3DTilesetLifecycleEventReceiver:
 	var loaded: Dictionary = {}
 
+	func _init() -> void:
+		tile_loaded.connect(_on_tile_loaded)
+
 	func _on_tile_loaded(tile: Cesium3DTile) -> void:
 		var side := str((tile.tile_extras as Dictionary).get("side", ""))
 		if not side.is_empty():

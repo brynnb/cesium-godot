@@ -27,10 +27,14 @@ Cesium GS or Godot Engine product and is not endorsed by either organization.
 - Godot collision, picking, bounding-volume queries, structural metadata,
   feature styling, point and line rendering, and GPU instancing.
 - Multi-camera selection, movement-aware prefetching, LOD transitions,
-  tile-lifecycle callbacks, application material and texture hooks, credits,
+  language-neutral tile-lifecycle signals and material Callables, application
+  material and texture integration, credits,
   and streaming diagnostics.
 - Request headers, retries, cancellation, persistent HTTP caching, and
   hardware-informed runtime budgets.
+- A generated C# facade for the runtime API, included with the addon and tested
+  against the Godot 4.6.3 .NET runtime. GDScript remains supported directly
+  through the same underlying GDExtension API.
 
 The integration currently targets Cesium Native 0.63.0 and Godot 4.6.3. Linux
 x86_64 is the primary tested platform; Windows x86_64 and macOS arm64 are part
@@ -80,6 +84,8 @@ tests/run_godot_tests.sh
 ```
 
 The test suite uses local fixtures and does not require Cesium ion credentials.
+The [C# guide](docs/C_SHARP.md) documents .NET usage and the separate headless
+C# smoke test.
 
 ## Contributing
 

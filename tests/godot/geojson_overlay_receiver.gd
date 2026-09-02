@@ -5,6 +5,12 @@ var attachments: Array[Dictionary] = []
 var detachments: Array[Dictionary] = []
 
 
+func _init() -> void:
+	tile_visibility_changed.connect(_on_tile_visibility_changed)
+	raster_overlay_attached.connect(_on_raster_overlay_attached)
+	raster_overlay_detaching.connect(_on_raster_overlay_detaching)
+
+
 func _on_tile_visibility_changed(_tile: Cesium3DTile, visible: bool) -> void:
 	events.append("visibility:%s" % visible)
 

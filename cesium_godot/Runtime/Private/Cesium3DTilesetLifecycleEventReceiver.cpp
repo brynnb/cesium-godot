@@ -8,30 +8,36 @@
 #include "Runtime/Public/CesiumLoadedTilePrimitive.h"
 #include "Runtime/Public/CesiumRasterOverlayBinding.h"
 
-namespace {
-// Do not construct Godot values at shared-library load time. GDExtension API
-// function pointers are not initialized until the entry point is invoked.
-constexpr const char* CREATE_MATERIAL_HOOK = "_create_material";
-constexpr const char* CUSTOMIZE_MATERIAL_HOOK = "_customize_material";
-constexpr const char* PRIMITIVE_LOADED_HOOK = "_on_tile_mesh_primitive_loaded";
-constexpr const char* RASTER_ATTACHED_HOOK = "_on_raster_overlay_attached";
-constexpr const char* RASTER_DETACHING_HOOK = "_on_raster_overlay_detaching";
-constexpr const char* TILE_LOADED_HOOK = "_on_tile_loaded";
-constexpr const char* VISIBILITY_CHANGED_HOOK = "_on_tile_visibility_changed";
-constexpr const char* TILE_UNLOADING_HOOK = "_on_tile_unloading";
+void Cesium3DTilesetLifecycleEventReceiver::set_material_selector(
+	const Callable& selector
+) {
+	this->m_materialSelector = selector;
+}
+
+Callable Cesium3DTilesetLifecycleEventReceiver::get_material_selector() const {
+	return this->m_materialSelector;
 }
 
 Ref<Material> Cesium3DTilesetLifecycleEventReceiver::create_material(
 	const Ref<CesiumLoadedTilePrimitive>& tilePrimitive,
 	const Ref<Material>& defaultMaterial
 ) {
-	if (!this->has_method(CREATE_MATERIAL_HOOK)) {
+	if (!this->m_materialSelector.is_valid()) {
 		return defaultMaterial;
 	}
 
-	Ref<Material> selectedMaterial = this->call(CREATE_MATERIAL_HOOK, tilePrimitive, defaultMaterial);
+	Array arguments;
+	arguments.push_back(tilePrimitive);
+	arguments.push_back(defaultMaterial);
+	const Variant result = this->m_materialSelector.callv(arguments);
+	Ref<Material> selectedMaterial;
+	if (result.get_type() == Variant::OBJECT) {
+		selectedMaterial = Ref<Material>(
+			Object::cast_to<Material>(static_cast<Object*>(result))
+		);
+	}
 	if (selectedMaterial.is_null()) {
-		WARN_PRINT("Cesium lifecycle receiver _create_material returned a non-Material value; using the default material");
+		WARN_PRINT("Cesium lifecycle material_selector returned a non-Material value; using the default material");
 		return defaultMaterial;
 	}
 	return selectedMaterial;
@@ -41,42 +47,28 @@ void Cesium3DTilesetLifecycleEventReceiver::customize_material(
 	const Ref<CesiumLoadedTilePrimitive>& tilePrimitive,
 	const Ref<Material>& material
 ) {
-	if (this->has_method(CUSTOMIZE_MATERIAL_HOOK)) {
-		this->call(CUSTOMIZE_MATERIAL_HOOK, tilePrimitive, material);
-	}
+	this->emit_signal("material_customizing", tilePrimitive, material);
 }
 
 void Cesium3DTilesetLifecycleEventReceiver::on_tile_mesh_primitive_loaded(
 	const Ref<CesiumLoadedTilePrimitive>& tilePrimitive
 ) {
-	if (this->has_method(PRIMITIVE_LOADED_HOOK)) {
-		this->call(PRIMITIVE_LOADED_HOOK, tilePrimitive);
-	}
 	this->emit_signal("tile_mesh_primitive_loaded", tilePrimitive);
 }
 
 void Cesium3DTilesetLifecycleEventReceiver::on_raster_overlay_attached(
 	const Ref<CesiumRasterOverlayBinding>& binding
 ) {
-	if (this->has_method(RASTER_ATTACHED_HOOK)) {
-		this->call(RASTER_ATTACHED_HOOK, binding);
-	}
 	this->emit_signal("raster_overlay_attached", binding);
 }
 
 void Cesium3DTilesetLifecycleEventReceiver::on_raster_overlay_detaching(
 	const Ref<CesiumRasterOverlayBinding>& binding
 ) {
-	if (this->has_method(RASTER_DETACHING_HOOK)) {
-		this->call(RASTER_DETACHING_HOOK, binding);
-	}
 	this->emit_signal("raster_overlay_detaching", binding);
 }
 
 void Cesium3DTilesetLifecycleEventReceiver::on_tile_loaded(Cesium3DTile* tile) {
-	if (this->has_method(TILE_LOADED_HOOK)) {
-		this->call(TILE_LOADED_HOOK, tile);
-	}
 	this->emit_signal("tile_loaded", tile);
 }
 
@@ -84,20 +76,37 @@ void Cesium3DTilesetLifecycleEventReceiver::on_tile_visibility_changed(
 	Cesium3DTile* tile,
 	bool visible
 ) {
-	if (this->has_method(VISIBILITY_CHANGED_HOOK)) {
-		this->call(VISIBILITY_CHANGED_HOOK, tile, visible);
-	}
 	this->emit_signal("tile_visibility_changed", tile, visible);
 }
 
 void Cesium3DTilesetLifecycleEventReceiver::on_tile_unloading(Cesium3DTile* tile) {
-	if (this->has_method(TILE_UNLOADING_HOOK)) {
-		this->call(TILE_UNLOADING_HOOK, tile);
-	}
 	this->emit_signal("tile_unloading", tile);
 }
 
 void Cesium3DTilesetLifecycleEventReceiver::_bind_methods() {
+	ClassDB::bind_method(
+		D_METHOD("set_material_selector", "selector"),
+		&Cesium3DTilesetLifecycleEventReceiver::set_material_selector
+	);
+	ClassDB::bind_method(
+		D_METHOD("get_material_selector"),
+		&Cesium3DTilesetLifecycleEventReceiver::get_material_selector
+	);
+	ADD_PROPERTY(
+		PropertyInfo(Variant::CALLABLE, "material_selector"),
+		"set_material_selector",
+		"get_material_selector"
+	);
+	ADD_SIGNAL(MethodInfo(
+		"material_customizing",
+		PropertyInfo(Variant::OBJECT, "tile_primitive", PROPERTY_HINT_RESOURCE_TYPE, "CesiumLoadedTilePrimitive"),
+		PropertyInfo(
+			Variant::OBJECT,
+			"material",
+			PROPERTY_HINT_RESOURCE_TYPE,
+			"Material"
+		)
+	));
 	ADD_SIGNAL(MethodInfo(
 		"tile_mesh_primitive_loaded",
 		PropertyInfo(Variant::OBJECT, "tile_primitive", PROPERTY_HINT_RESOURCE_TYPE, "CesiumLoadedTilePrimitive")

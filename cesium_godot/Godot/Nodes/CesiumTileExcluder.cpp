@@ -136,10 +136,7 @@ bool CesiumTileExcluder::evaluate_native_context(
 	++this->m_evaluationCount;
 	++this->m_currentFrameEvaluationCount;
 
-	Callable callback = this->m_predicate;
-	if (!callback.is_valid() && this->has_method("_should_exclude")) {
-		callback = Callable(this, "_should_exclude");
-	}
+	const Callable& callback = this->m_predicate;
 	if (!callback.is_valid()) {
 		return false;
 	}

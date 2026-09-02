@@ -3,6 +3,11 @@ extends Cesium3DTilesetLifecycleEventReceiver
 var loaded_primitives: Array[CesiumLoadedTilePrimitive] = []
 
 
+func _init() -> void:
+	material_selector = Callable(self, "_create_material")
+	tile_mesh_primitive_loaded.connect(_on_tile_mesh_primitive_loaded)
+
+
 func _create_material(
 	_primitive: CesiumLoadedTilePrimitive,
 	default_material: Material

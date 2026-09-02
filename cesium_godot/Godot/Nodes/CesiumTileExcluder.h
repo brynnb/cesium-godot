@@ -33,7 +33,7 @@ class CesiumTileExclusionContext;
  * subtrees before their content is requested.
  *
  * Set `predicate` to a Callable receiving CesiumTileExclusionContext and
- * returning bool, or derive a GDScript and implement `_should_exclude(context)`.
+ * returning bool.
  * The predicate runs synchronously during Cesium traversal and must be fast,
  * deterministic, and free of scene-tree mutation.
  */

@@ -4,7 +4,9 @@
 point for applications that need to observe tile resource lifecycles or choose
 materials while a tile is being realized. Its callback shape follows Cesium
 for Unreal's `ICesium3DTilesetLifecycleEventReceiver`, translated to Godot
-nodes, resources, signals, and optional GDScript hooks.
+nodes, resources, signals, and `Callable` properties. The same API is available
+to GDScript, C#, and other Godot languages; it does not discover specially
+named methods on a GDScript subclass.
 
 This API is intended for reusable renderer integration. Application-specific
 terrain shaders, textures, metadata policies, and caches remain in the
@@ -19,7 +21,18 @@ Create a receiver as a child of your scene and assign it to a
 extends Cesium3DTilesetLifecycleEventReceiver
 
 
-func _create_material(
+func _init() -> void:
+	material_selector = Callable(self, "select_material")
+	material_customizing.connect(customize_material)
+	tile_mesh_primitive_loaded.connect(on_primitive_loaded)
+	raster_overlay_attached.connect(on_raster_attached)
+	raster_overlay_detaching.connect(on_raster_detaching)
+	tile_loaded.connect(on_tile_loaded)
+	tile_visibility_changed.connect(on_visibility_changed)
+	tile_unloading.connect(on_tile_unloading)
+
+
+func select_material(
 	primitive: CesiumLoadedTilePrimitive,
 	default_material: Material
 ) -> Material:
@@ -28,7 +41,7 @@ func _create_material(
 	return default_material
 
 
-func _customize_material(
+func customize_material(
 	primitive: CesiumLoadedTilePrimitive,
 	material: Material
 ) -> void:
@@ -37,36 +50,36 @@ func _customize_material(
 	pass
 
 
-func _on_tile_mesh_primitive_loaded(
+func on_primitive_loaded(
 	primitive: CesiumLoadedTilePrimitive
 ) -> void:
 	pass
 
 
-func _on_raster_overlay_attached(
+func on_raster_attached(
 	binding: CesiumRasterOverlayBinding
 ) -> void:
 	pass
 
 
-func _on_raster_overlay_detaching(
+func on_raster_detaching(
 	binding: CesiumRasterOverlayBinding
 ) -> void:
 	pass
 
 
-func _on_tile_loaded(tile: Cesium3DTile) -> void:
+func on_tile_loaded(tile: Cesium3DTile) -> void:
 	pass
 
 
-func _on_tile_visibility_changed(
+func on_visibility_changed(
 	tile: Cesium3DTile,
 	visible: bool
 ) -> void:
 	pass
 
 
-func _on_tile_unloading(tile: Cesium3DTile) -> void:
+func on_tile_unloading(tile: Cesium3DTile) -> void:
 	# Release application-owned resources associated with this tile now.
 	pass
 ```
@@ -79,8 +92,13 @@ add_child(receiver)
 tileset.lifecycle_event_receiver = receiver
 ```
 
-Lifecycle notifications are also emitted as signals on the receiver:
+`material_selector` is the decision callback because it must return a
+`Material`. If it is unset, invalid, or returns a non-`Material` value, the
+generated default material is used.
 
+All notifications are emitted as signals on the receiver:
+
+- `material_customizing(primitive, selected_material)`
 - `tile_mesh_primitive_loaded(primitive)`
 - `raster_overlay_attached(binding)`
 - `raster_overlay_detaching(binding)`
@@ -88,21 +106,19 @@ Lifecycle notifications are also emitted as signals on the receiver:
 - `tile_visibility_changed(tile, visible)`
 - `tile_unloading(tile)`
 
-The optional hook runs before its corresponding signal.
-
 ## Ordering
 
 For a tile that reaches renderer realization, callbacks occur in this order:
 
-1. `_create_material` for a primitive.
-2. `_customize_material` for that primitive's selected material.
-3. `_on_tile_mesh_primitive_loaded` for that primitive.
+1. `material_selector` for a primitive.
+2. `material_customizing` for that primitive's selected material.
+3. `tile_mesh_primitive_loaded` for that primitive.
 4. Repeat steps 1-3 for every primitive/surface.
-5. `_on_tile_loaded` after every primitive has finished.
-6. `_on_tile_visibility_changed(tile, true)` when selection first shows it.
+5. `tile_loaded` after every primitive has finished.
+6. `tile_visibility_changed(tile, true)` when selection first shows it.
 7. Zero or more later visibility changes as Cesium selection changes.
-8. `_on_raster_overlay_detaching` for every attached overlay.
-9. `_on_tile_unloading` immediately before the renderer releases the tile.
+8. `raster_overlay_detaching` for every attached overlay.
+9. `tile_unloading` immediately before the renderer releases the tile.
 
 All callbacks execute on the same main thread that calls Cesium's view update.
 Do not block them with file I/O, network access, image decoding, or large
@@ -129,8 +145,8 @@ callbacks.
 
 The tileset releases its active Cesium renderer resources when it exits the
 scene tree, while realized Godot tile nodes are still valid. This guarantees
-that `_on_tile_unloading` can inspect and disassociate the tile before Godot
-destroys it.
+that `tile_unloading` subscribers can inspect and disassociate the tile before
+Godot destroys it.
 
 ## Primitive context
 
@@ -166,38 +182,38 @@ destroys it.
 
 Tile identifiers are informational and are not guaranteed to be globally
 unique. Associate per-instance state with the tile's Godot instance ID, and
-remove it during `_on_tile_unloading`.
+remove it during `tile_unloading`.
 
 The context stores the tile by `ObjectID`, not by a raw pointer. Retaining the
 context after unload is safe, but `loaded_tile` will then return `null`.
 
 The loaded `Cesium3DTile` also exposes owned `tile_bounds`, `content_bounds`,
 and `viewer_request_bounds` Resources. Retain those Resources directly when an
-application needs bounds after `_on_tile_unloading`; they contain no Native
+application needs bounds after `tile_unloading`; they contain no Native
 tile pointer. Shape, precision, coordinate-frame, and transformation behavior
 is documented in [bounding-volume queries](BOUNDING_VOLUMES.md).
 
 ## Material ownership
 
 The renderer first creates the ordinary glTF-derived `StandardMaterial3D`.
-`_create_material` receives that resource and may return it or a replacement.
+`material_selector` receives that resource and may return it or a replacement.
 The selected resource is installed as a surface override on the individual
 tile node, or as the material override on a primitive's child MultiMesh render
 node. It does not mutate the underlying `ArrayMesh`, which is important when
 many tiles or placements share one immutable mesh resource.
 
-If `_create_material` returns the supplied default resource, the renderer
-shallow-duplicates that material before `_customize_material`. Shader and
+If `material_selector` returns the supplied default resource, the renderer
+shallow-duplicates that material before `material_customizing`. Shader and
 texture resources remain shared, while parameters and raster state are safely
 per tile. A replacement returned by the application is used as supplied; the
 application controls whether that replacement itself is shared.
 
-If `_create_material` returns `null` or a non-`Material` value, the renderer
+If `material_selector` returns `null` or a non-`Material` value, the renderer
 warns and uses the default material.
 
-`_customize_material` runs after selection. When returning a replacement
-shader material, the application is responsible for translating any standard
-glTF values it still needs from `default_material` and
+`material_customizing` runs after selection. When `material_selector` returns a
+replacement shader material, the application is responsible for translating
+any standard glTF values it still needs from `default_material` and
 `primitive.gltf_material`.
 
 Raster-overlay parameter propagation uses the separate generic

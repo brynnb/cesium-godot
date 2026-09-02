@@ -1,0 +1,11 @@
+[application]
+
+config/name="Cesium for Godot C# Smoke Test"
+
+[dotnet]
+
+project/assembly_name="CesiumCSharpSmoke"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"

@@ -1,8 +1,9 @@
 # Lifecycle and material demo
 
 This tiny project streams one local 3D Tiles 1.1 fixture and demonstrates every
-`Cesium3DTilesetLifecycleEventReceiver` material, tile, visibility, raster, and
-unload hook. It contains no Vanguard code, Cesium ion dependency, credentials,
+`Cesium3DTilesetLifecycleEventReceiver` material decision and its tile,
+visibility, raster, and unload signals. It contains no Vanguard code, Cesium
+ion dependency, credentials,
 or network request.
 
 Build the release extension from the repository root, then launch the example:
@@ -18,7 +19,7 @@ The project-local `Godot3DTiles.gdextension` points at the repository build
 artifacts. A packaged copy of the example should instead copy the complete
 `godot3dtiles/addons/cesium_godot` directory into its own `addons` directory.
 
-The left panel shows the exact hook order. Its controls:
+The left panel shows the exact callback order. Its controls:
 
 - attach or detach an application-owned raster texture;
 - move the Cesium view away and back to generate visibility changes; and
@@ -43,8 +44,8 @@ godot4 --headless --path examples/lifecycle_material_demo -- --smoke-test
 ```
 
 It requires material selection/customization, primitive and tile completion,
-visibility, raster attach/detach, and valid pre-destruction unload hooks before
-exiting successfully.
+visibility, raster attach/detach, and a valid pre-destruction unload signal
+before exiting successfully.
 
 The same example provides a fixed four-waypoint streaming benchmark:
 

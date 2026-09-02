@@ -254,10 +254,10 @@ func _update_status() -> void:
 
 func _run_smoke_sequence() -> void:
 	if Time.get_ticks_msec() > smoke_deadline:
-		_smoke_fail("timed out; hooks=%s" % receiver.hook_counts)
+		_smoke_fail("timed out; callbacks=%s" % receiver.hook_counts)
 		return
 	if not smoke_cleanup_started:
-		if int(receiver.hook_counts.get("_on_raster_overlay_attached", 0)) < 1:
+		if int(receiver.hook_counts.get("raster_overlay_attached", 0)) < 1:
 			return
 		_detach_overlay()
 		if tileset != null:
@@ -266,18 +266,18 @@ func _run_smoke_sequence() -> void:
 		smoke_cleanup_started = true
 		return
 
-	var required_hooks := [
-		"_create_material",
-		"_customize_material",
-		"_on_tile_mesh_primitive_loaded",
-		"_on_raster_overlay_attached",
-		"_on_raster_overlay_detaching",
-		"_on_tile_loaded",
-		"_on_tile_visibility_changed",
-		"_on_tile_unloading",
+	var required_callbacks := [
+		"material_selector",
+		"material_customizing",
+		"tile_mesh_primitive_loaded",
+		"raster_overlay_attached",
+		"raster_overlay_detaching",
+		"tile_loaded",
+		"tile_visibility_changed",
+		"tile_unloading",
 	]
-	for hook in required_hooks:
-		if int(receiver.hook_counts.get(hook, 0)) < 1:
+	for callback_name in required_callbacks:
+		if int(receiver.hook_counts.get(callback_name, 0)) < 1:
 			return
 	print("Cesium lifecycle/material example smoke test passed: ", receiver.hook_counts)
 	get_tree().quit(0)

@@ -8,18 +8,32 @@ var hook_counts: Dictionary = {}
 var latest_primitive: CesiumLoadedTilePrimitive
 
 
-func _record(hook: String, detail: String) -> void:
-	hook_counts[hook] = int(hook_counts.get(hook, 0)) + 1
-	var message := "%s  %s" % [hook, detail]
+func _init() -> void:
+	material_selector = Callable(self, "select_material")
+	material_customizing.connect(customize_material_parameters)
+	tile_mesh_primitive_loaded.connect(record_primitive_loaded)
+	raster_overlay_attached.connect(record_raster_attached)
+	raster_overlay_detaching.connect(record_raster_detaching)
+	tile_loaded.connect(record_tile_loaded)
+	tile_visibility_changed.connect(record_visibility_changed)
+	tile_unloading.connect(record_tile_unloading)
+
+
+func _record(event_name: String, detail: String) -> void:
+	hook_counts[event_name] = int(hook_counts.get(event_name, 0)) + 1
+	var message := "%s  %s" % [event_name, detail]
 	print("Cesium demo: ", message)
 	event_recorded.emit(message)
 
 
-func _create_material(
+func select_material(
 	primitive: CesiumLoadedTilePrimitive,
 	_default_material: Material
 ) -> Material:
-	_record("_create_material", "surface %d: selecting demo shader" % primitive.surface_index)
+	_record(
+		"material_selector",
+		"surface %d: selecting demo shader" % primitive.surface_index
+	)
 	var shader := Shader.new()
 	shader.code = """
 shader_type spatial;
@@ -50,7 +64,7 @@ void fragment() {
 	return material
 
 
-func _customize_material(
+func customize_material_parameters(
 	primitive: CesiumLoadedTilePrimitive,
 	material: Material
 ) -> void:
@@ -61,49 +75,52 @@ func _customize_material(
 			"demo_tint",
 			Color.from_hsv(hue, 0.75, 0.95, 1.0)
 		)
-	_record("_customize_material", "surface %d: applying per-tile parameters" % primitive.surface_index)
+	_record(
+		"material_customizing",
+		"surface %d: applying per-tile parameters" % primitive.surface_index
+	)
 
 
-func _on_tile_mesh_primitive_loaded(
+func record_primitive_loaded(
 	primitive: CesiumLoadedTilePrimitive
 ) -> void:
 	latest_primitive = primitive
 	_record(
-		"_on_tile_mesh_primitive_loaded",
+		"tile_mesh_primitive_loaded",
 		"tile=%s surface=%d" % [primitive.tile_id, primitive.surface_index]
 	)
 	primitive_ready.emit(primitive)
 
 
-func _on_raster_overlay_attached(binding: CesiumRasterOverlayBinding) -> void:
+func record_raster_attached(binding: CesiumRasterOverlayBinding) -> void:
 	_record(
-		"_on_raster_overlay_attached",
+		"raster_overlay_attached",
 		"%s on UV%d" % [binding.overlay_key, binding.texture_coordinate_index]
 	)
 
 
-func _on_raster_overlay_detaching(binding: CesiumRasterOverlayBinding) -> void:
+func record_raster_detaching(binding: CesiumRasterOverlayBinding) -> void:
 	_record(
-		"_on_raster_overlay_detaching",
+		"raster_overlay_detaching",
 		"%s while binding is still valid" % binding.overlay_key
 	)
 
 
-func _on_tile_loaded(tile: Cesium3DTile) -> void:
-	_record("_on_tile_loaded", "tile=%s" % tile.tile_id)
+func record_tile_loaded(tile: Cesium3DTile) -> void:
+	_record("tile_loaded", "tile=%s" % tile.tile_id)
 	tile_ready.emit(tile)
 
 
-func _on_tile_visibility_changed(tile: Cesium3DTile, visible: bool) -> void:
+func record_visibility_changed(tile: Cesium3DTile, visible: bool) -> void:
 	_record(
-		"_on_tile_visibility_changed",
+		"tile_visibility_changed",
 		"tile=%s visible=%s" % [tile.tile_id, visible]
 	)
 
 
-func _on_tile_unloading(tile: Cesium3DTile) -> void:
+func record_tile_unloading(tile: Cesium3DTile) -> void:
 	_record(
-		"_on_tile_unloading",
+		"tile_unloading",
 		"tile=%s valid=%s" % [tile.tile_id, is_instance_valid(tile)]
 	)
 	latest_primitive = null

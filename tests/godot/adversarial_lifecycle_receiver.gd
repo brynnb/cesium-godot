@@ -3,6 +3,12 @@ extends Cesium3DTilesetLifecycleEventReceiver
 var events: Array[String] = []
 
 
+func _init() -> void:
+	tile_loaded.connect(_on_tile_loaded)
+	tile_visibility_changed.connect(_on_tile_visibility_changed)
+	tile_unloading.connect(_on_tile_unloading)
+
+
 func _on_tile_loaded(_tile: Cesium3DTile) -> void:
 	events.append("tile_loaded")
 

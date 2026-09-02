@@ -20,8 +20,8 @@ is deliberately not named ECEF because local tilesets are valid.
 
 ## Automatic ShaderMaterial parameters
 
-After `_create_material` selects a `ShaderMaterial`, the renderer sets these
-parameters before `_customize_material` runs:
+After `material_selector` selects a `ShaderMaterial`, the renderer sets these
+parameters before the `material_customizing` signal is emitted:
 
 ```glsl
 uniform vec3 cesium_absolute_origin_high;

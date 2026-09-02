@@ -7,6 +7,17 @@ var unloading_tile_was_valid := false
 var overlay_snapshots: Array[Dictionary] = []
 
 
+func _init() -> void:
+	material_selector = Callable(self, "_create_material")
+	material_customizing.connect(_customize_material)
+	tile_mesh_primitive_loaded.connect(_on_tile_mesh_primitive_loaded)
+	raster_overlay_attached.connect(_on_raster_overlay_attached)
+	raster_overlay_detaching.connect(_on_raster_overlay_detaching)
+	tile_loaded.connect(_on_tile_loaded)
+	tile_visibility_changed.connect(_on_tile_visibility_changed)
+	tile_unloading.connect(_on_tile_unloading)
+
+
 func _create_material(
 	primitive: CesiumLoadedTilePrimitive,
 	default_material: Material

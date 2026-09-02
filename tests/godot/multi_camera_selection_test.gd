@@ -21,6 +21,10 @@ class TrackingReceiver extends Cesium3DTilesetLifecycleEventReceiver:
 	var load_count: Dictionary = {}
 	var visible: Dictionary = {}
 
+	func _init() -> void:
+		tile_loaded.connect(_on_tile_loaded)
+		tile_visibility_changed.connect(_on_tile_visibility_changed)
+
 	func _on_tile_loaded(tile: Cesium3DTile) -> void:
 		var view_name := str((tile.tile_extras as Dictionary).get("view", ""))
 		if not view_name.is_empty():

@@ -4,6 +4,11 @@ var attachments: Array[Dictionary] = []
 var detachments: Array[Dictionary] = []
 
 
+func _init() -> void:
+	raster_overlay_attached.connect(_on_raster_overlay_attached)
+	raster_overlay_detaching.connect(_on_raster_overlay_detaching)
+
+
 func _on_raster_overlay_attached(
 	binding: CesiumRasterOverlayBinding
 ) -> void:

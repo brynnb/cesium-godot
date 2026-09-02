@@ -84,7 +84,7 @@ inactive LRU outside `maximum_cached_bytes`.
 
 Only immutable base resources are shared. A lifecycle receiver that selects
 the default material receives a shallow per-tile material duplicate before
-`_customize_material`, retaining the shared Shader and Texture objects while
+the `material_customizing` signal, retaining the shared Shader and Texture objects while
 preventing one tile's parameter changes from affecting another placement.
 Raster bindings likewise remain per tile.
 

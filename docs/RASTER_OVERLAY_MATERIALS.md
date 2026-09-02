@@ -70,39 +70,42 @@ remove a newer replacement with the same key.
 `StandardMaterial3D` remains a compatibility fallback. Because it has one
 albedo slot, it displays the first attached overlay mapped to `UV`; all
 bindings remain queryable. Projects that need compositing, masking, or more
-than one visible overlay should select a `ShaderMaterial` in `_create_material`.
+than one visible overlay should select a `ShaderMaterial` with the lifecycle
+receiver's `material_selector` Callable.
 
-## Lifecycle hooks and signals
+## Lifecycle signals
 
-A `Cesium3DTilesetLifecycleEventReceiver` may implement:
+A `Cesium3DTilesetLifecycleEventReceiver` exposes synchronous signals:
 
 ```gdscript
-func _on_raster_overlay_attached(
+func _init() -> void:
+	raster_overlay_attached.connect(on_raster_attached)
+	raster_overlay_detaching.connect(on_raster_detaching)
+
+
+func on_raster_attached(
 	binding: CesiumRasterOverlayBinding
 ) -> void:
 	pass
 
 
-func _on_raster_overlay_detaching(
+func on_raster_detaching(
 	binding: CesiumRasterOverlayBinding
 ) -> void:
 	# The material, texture, primitive, and attached=true state are still valid.
 	pass
 ```
 
-Equivalent `raster_overlay_attached(binding)` and
-`raster_overlay_detaching(binding)` signals are emitted after their hooks.
-
 Ordering is:
 
 1. the per-tile material is created and populated with every active binding;
-2. the attach hook and signal run;
-3. on replacement/removal, the detach hook and signal run while the old state
+2. the attach signal runs;
+3. on replacement/removal, the detach signal runs while the old state
    is valid;
 4. old shader state is cleared and remaining overlays are reapplied; and
 5. the old binding is marked detached.
 
-On tile unload, every remaining overlay detaches before `_on_tile_unloading`.
+On tile unload, every remaining overlay detaches before `tile_unloading`.
 
 ## Custom raster providers
 

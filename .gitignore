@@ -50,6 +50,10 @@ tests/godot/.godot/
 tests/godot/.test-user-data/
 tests/godot/**/*.uid
 tests/godot/**/*.import
+tests/csharp/.godot/
+tests/csharp/.test-user-data/
+tests/csharp/**/*.uid
+tests/csharp/**/*.import
 
 # Example projects generate the same ordinary Godot import/user-data folders.
 examples/**/.godot/

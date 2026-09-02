@@ -14,6 +14,11 @@ class TrackingReceiver extends Cesium3DTilesetLifecycleEventReceiver:
 	var events: Array[String] = []
 	var use_unsupported_material := false
 
+	func _init() -> void:
+		material_selector = Callable(self, "_create_material")
+		tile_loaded.connect(_on_tile_loaded)
+		tile_visibility_changed.connect(_on_tile_visibility_changed)
+
 	func _create_material(
 		_primitive: CesiumLoadedTilePrimitive,
 		default_material: Material

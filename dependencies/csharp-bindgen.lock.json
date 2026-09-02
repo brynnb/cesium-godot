@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "repository": "https://github.com/brynnb/godot-csharp-gdextension-bindgen.git",
+  "upstream_repository": "https://github.com/gilzoide/godot-csharp-gdextension-bindgen.git",
+  "upstream_version": "0.3.1",
+  "commit": "70c4112761bbc01a4adc28893a3b5a3874520050",
+  "tree": "2c2e47f114512c2d08c0304e1bdda2a3a2fa61d0",
+  "namespace": "CesiumForGodot",
+  "expected_class_count": 64,
+  "godot_version": "4.6.3"
+}

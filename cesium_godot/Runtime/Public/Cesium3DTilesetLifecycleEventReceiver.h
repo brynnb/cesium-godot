@@ -2,12 +2,14 @@
 #define CESIUM_3D_TILESET_LIFECYCLE_EVENT_RECEIVER_H
 
 #if defined(CESIUM_GD_MODULE)
+#include "core/variant/callable.h"
 #include "scene/main/node.h"
 #include "scene/resources/material.h"
 #elif defined(CESIUM_GD_EXT)
 #include "godot_cpp/classes/material.hpp"
 #include "godot_cpp/classes/node.hpp"
 #include "godot_cpp/classes/ref.hpp"
+#include "godot_cpp/variant/callable.hpp"
 using namespace godot;
 #endif
 
@@ -21,13 +23,17 @@ class CesiumRasterOverlayBinding;
  * Godot counterpart of Cesium for Unreal v2.29.0:
  * Source/CesiumRuntime/Public/Cesium3DTilesetLifecycleEventReceiver.h
  *
- * A GDScript subclass may implement any of the optional underscored hooks
- * documented in docs/TILE_LIFECYCLE.md.
+ * Decisions that require a return value are configured with Callable
+ * properties. Notifications are emitted as signals. This keeps the API
+ * identical for GDScript, C#, and other Godot languages.
  */
 class Cesium3DTilesetLifecycleEventReceiver : public Node {
 	GDCLASS(Cesium3DTilesetLifecycleEventReceiver, Node)
 
 public:
+	void set_material_selector(const Callable& selector);
+	Callable get_material_selector() const;
+
 	virtual Ref<Material> create_material(
 		const Ref<CesiumLoadedTilePrimitive>& tilePrimitive,
 		const Ref<Material>& defaultMaterial
@@ -54,6 +60,9 @@ public:
 
 protected:
 	static void _bind_methods();
+
+private:
+	Callable m_materialSelector;
 };
 
 #endif // CESIUM_3D_TILESET_LIFECYCLE_EVENT_RECEIVER_H

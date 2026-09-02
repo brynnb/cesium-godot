@@ -103,8 +103,8 @@ excluder.predicate = Callable(self, "exclude_tile")
 tileset.add_child(excluder)
 ```
 
-A GDScript subclass may instead implement `_should_exclude(context)`. The
-context contains the Native tile ID (which may legitimately be empty), depth,
+The `predicate` property is the only exclusion callback path in every Godot
+language. The context contains the Native tile ID (which may legitimately be empty), depth,
 child count, geometric error, ADD/REPLACE mode, an owned bounding-volume
 snapshot, and the complete float64 tile transform.
 
