@@ -1,10 +1,11 @@
 # Lifecycle and material demo
 
-This tiny project streams one local 3D Tiles 1.1 fixture and demonstrates every
+This tiny project normally streams one local 3D Tiles 1.1 fixture and demonstrates every
 `Cesium3DTilesetLifecycleEventReceiver` material decision and its tile,
 visibility, raster, and unload signals. It contains no Vanguard code, Cesium
-ion dependency, credentials,
-or network request.
+ion dependency, or credentials. Its dedicated Android emulator smoke mode also
+loads the same public fixture over HTTPS to verify Android networking and
+certificate handling.
 
 Build the release extension from the repository root, then launch the example:
 
@@ -46,6 +47,13 @@ godot4 --headless --path examples/lifecycle_material_demo -- --smoke-test
 It requires material selection/customization, primitive and tile completion,
 visibility, raster attach/detach, and a valid pre-destruction unload signal
 before exiting successfully.
+
+Android exports use the same scene for a two-pass device test. The first pass
+copies the packaged fixture to the application's private filesystem and loads
+it through a canonical `file://` URL. The second pass loads the fixture over
+HTTPS. Each pass renders briefly before unloading so the headless emulator
+runner can capture a screenshot. See
+[`docs/BUILD_ANDROID.md`](../../docs/BUILD_ANDROID.md) for the complete command.
 
 The same example provides a fixed four-waypoint streaming benchmark:
 

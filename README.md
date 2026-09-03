@@ -178,6 +178,19 @@ The same pinned fixture runs against the freshly built Windows DLL with:
 ./tests/run_2dog_tests.ps1
 ```
 
+Android release builds target ARM64. A separate x86_64 test target runs the
+same native runtime inside an accelerated, windowless Android emulator and
+checks APK installation, extension loading, packaged and HTTPS tile streaming,
+rendering, unloading, and a clean second launch:
+
+```bash
+ANDROID_HOME=/absolute/path/to/android-sdk \
+  tests/run_android_emulator_tests.sh
+```
+
+See the [Android build guide](docs/BUILD_ANDROID.md) for the required SDK image,
+x86_64 build, APK export, screenshots, and the limits of emulator coverage.
+
 ## Contributing
 
 Issues and focused pull requests are welcome. Please keep engine-specific code

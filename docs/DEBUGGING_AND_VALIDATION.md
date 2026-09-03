@@ -161,3 +161,12 @@ running it.
 The hosted Windows build also launches the packaged addon with the lifecycle
 demo's `--smoke-test` mode. This catches platform-specific DLL loading and
 local-file URL failures that a successful Windows link alone cannot detect.
+
+For Android, `tests/run_android_emulator_tests.sh` installs the exported x86_64
+APK into an accelerated Android 35 emulator on an isolated Xvfb display. It
+requires successful packaged-file and HTTPS streaming, lifecycle callbacks,
+material application, unloading, and two independent launches. It also saves a
+rendered screenshot for visual inspection and fails on Android crashes, native
+library loading failures, explicit smoke failures, or rendering-device loss.
+The Android guide documents setup and explains why this complements rather
+than replaces ARM64 physical-device testing.
