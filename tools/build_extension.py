@@ -106,18 +106,20 @@ def main(arguments: Sequence[str] | None = None) -> int:
     ):
         raise SystemExit(
             f"cross-compilation is not configured: host is {host_name}, target is {args.platform}; "
-            "Android arm64 may be cross-compiled from Linux"
+            "Android arm64 and x86_64 may be cross-compiled from Linux"
         )
     supported_targets = {
         ("linux", "x64"),
         ("windows", "x64"),
         ("macos", "arm64"),
         ("android", "arm64"),
+        ("android", "x86_64"),
     }
     if (args.platform, args.arch) not in supported_targets:
         raise SystemExit(
             f"unsupported extension target: {args.platform}/{args.arch}; "
-            "supported targets are Linux x64, Windows x64, macOS arm64, and Android arm64"
+            "supported targets are Linux x64, Windows x64, macOS arm64, "
+            "Android arm64, and Android x86_64"
         )
     environment = os.environ.copy()
     environment["CESIUM_GODOT_BUILD_JOBS"] = str(args.jobs)

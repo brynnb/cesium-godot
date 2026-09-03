@@ -364,6 +364,10 @@ def configure_native(argumentsDict):
         ]
     if get_target_platform(argumentsDict) == PLATFORM_ANDROID:
         ndk_root = get_android_ndk_root()
+        android_abi = {
+            "arm64": "arm64-v8a",
+            "x86_64": "x86_64",
+        }[get_target_architecture(argumentsDict)]
         subprocess_environment["ANDROID_NDK_HOME"] = ndk_root
         subprocess_environment["ANDROID_NDK_ROOT"] = ndk_root
         cmake_arguments.extend(
@@ -376,7 +380,7 @@ def configure_native(argumentsDict):
                 % os.path.join(ndk_root, "build", "cmake", "android.toolchain.cmake"),
                 "-DVCPKG_INSTALLED_DIR=%s"
                 % get_vcpkg_installed_root(argumentsDict),
-                "-DANDROID_ABI=arm64-v8a",
+                f"-DANDROID_ABI={android_abi}",
                 "-DANDROID_PLATFORM=android-24",
             )
         )
@@ -399,11 +403,14 @@ def determine_triplet(arguments=None):
     target = get_target_platform(arguments)
     architecture = get_target_architecture(arguments)
     if target == PLATFORM_ANDROID:
-        if architecture != "arm64":
-            raise RuntimeError(
-                f"unsupported Android architecture: {architecture}; only arm64 is supported"
-            )
-        return "arm64-android"
+        if architecture == "arm64":
+            return "arm64-android"
+        if architecture == "x86_64":
+            return "x64-android"
+        raise RuntimeError(
+            f"unsupported Android architecture: {architecture}; "
+            "supported architectures are arm64 and x86_64"
+        )
     if target == "windows":
         return "x64-windows-static"
     if target == "macos":

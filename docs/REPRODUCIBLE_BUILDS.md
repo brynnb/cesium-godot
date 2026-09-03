@@ -35,9 +35,10 @@ python3 tools/build_extension.py --skip-native --jobs 12
 ```
 
 The supported build hosts/targets are Linux x86_64, Windows x86_64, macOS
-arm64, and Android arm64 cross-compiled from Linux. The wrapper rejects other
-cross-target combinations because the Native triplet, bundled archives, and
-host compiler would otherwise disagree. See
+arm64, Android arm64 cross-compiled from Linux, and Android x86_64 as a local
+emulator-test target. The wrapper rejects other cross-target combinations
+because the Native triplet, bundled archives, and host compiler would otherwise
+disagree. See
 [`BUILD_ANDROID.md`](BUILD_ANDROID.md) for Android SDK/NDK setup.
 
 ## What is locked
@@ -110,8 +111,9 @@ The normal test runner invokes it before runtime tests.
 `.github/workflows/build-matrix.yml` uses immutable action SHAs and fixed
 Ubuntu 24.04, Windows 2022, and macOS 15 arm64 runner labels. It builds Linux,
 Windows, macOS arm64, and Android arm64 single-precision artifacts. Android is
-cross-compiled on Ubuntu with the locked NDK and its output is checked as an
-AArch64 shared library. Linux additionally runs
+cross-compiled on Ubuntu with the locked NDK and its release output is checked
+as an AArch64 shared library. Android x86_64 is retained as an emulator-test
+target rather than distributed as a release artifact. Linux additionally runs
 Cesium Native tests, resolves the final shared library, and runs the full Godot
 suite and an editor-plugin dock registration smoke test on official Godot 4.6.3
 and 4.7.2. The editor test verifies that the packaged plugin actually attaches

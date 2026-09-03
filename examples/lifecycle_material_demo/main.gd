@@ -10,6 +10,12 @@ const HOME_TARGET := Vector3(EARTH_RADIUS + 50.0, 0.0, 50.0)
 const AWAY_POSITION := Vector3(1_000_000.0, 1_000_000.0, 1_000_000.0)
 const AWAY_TARGET := Vector3(2_000_000.0, 1_000_000.0, 1_000_000.0)
 const SMOKE_TIMEOUT_MILLISECONDS := 15_000
+const ANDROID_VISUAL_HOLD_MILLISECONDS := 1_500
+const ANDROID_FIXTURE_DIRECTORY := "user://cesium-godot-smoke"
+const ANDROID_HTTPS_TILESET_URL := (
+	"https://raw.githubusercontent.com/brynnb/cesium-godot/main/"
+	+ "examples/lifecycle_material_demo/fixtures/tileset.json"
+)
 
 var camera: Camera3D
 var georeference: CesiumGeoreference
@@ -25,23 +31,39 @@ var status_label: Label
 var overlay_button: Button
 var view_button: Button
 var smoke_mode := false
+var android_https_smoke := false
+var smoke_pass := 0
 var smoke_deadline := 0
 var smoke_cleanup_started := false
+var smoke_visual_ready_at := 0
+var android_fixture_directory_path := ""
 var benchmark_mode := false
 var benchmark_started := false
 
 
 func _ready() -> void:
-	smoke_mode = OS.get_cmdline_user_args().has("--smoke-test")
-	benchmark_mode = OS.get_cmdline_user_args().has("--benchmark-route")
+	smoke_mode = _has_command_line_argument("--smoke-test")
+	android_https_smoke = _has_command_line_argument("--android-https-smoke")
+	benchmark_mode = _has_command_line_argument("--benchmark-route")
 	smoke_deadline = Time.get_ticks_msec() + SMOKE_TIMEOUT_MILLISECONDS
 	_create_camera()
 	_create_georeference()
 	_create_receiver()
 	_create_interface()
+	if smoke_mode and OS.get_name() == "Android" and not _copy_android_fixture():
+		return
 	_create_tileset()
 	if benchmark_mode:
 		_run_benchmark_route.call_deferred()
+
+
+func _has_command_line_argument(argument: String) -> bool:
+	# Desktop tests put fixture flags after `--`; Android export presets append
+	# them directly to the engine command line. Accept both representations.
+	return (
+		OS.get_cmdline_user_args().has(argument)
+		or OS.get_cmdline_args().has(argument)
+	)
 
 
 func _process(_delta: float) -> void:
@@ -50,7 +72,7 @@ func _process(_delta: float) -> void:
 	if tileset != null and is_instance_valid(tileset):
 		tileset.update_tileset(camera.global_transform)
 		_update_status()
-	if smoke_mode:
+	if smoke_mode and receiver != null:
 		_run_smoke_sequence()
 
 
@@ -85,9 +107,13 @@ func _create_tileset() -> void:
 	tileset = Cesium3DTileset.new()
 	tileset.name = "LocalDemoTileset"
 	tileset.data_source = 1
-	tileset.url = CesiumUrlUtility.local_path_to_file_url(
-		"res://fixtures/tileset.json"
-	)
+	if android_https_smoke and smoke_pass == 1:
+		tileset.url = ANDROID_HTTPS_TILESET_URL
+	else:
+		var fixture_path := "res://fixtures/tileset.json"
+		if OS.get_name() == "Android":
+			fixture_path = android_fixture_directory_path.path_join("tileset.json")
+		tileset.url = CesiumUrlUtility.local_path_to_file_url(fixture_path)
 	tileset.create_physics_meshes = false
 	tileset.http_cache_enabled = false
 	tileset.maximum_screen_space_error = 1.0
@@ -259,6 +285,19 @@ func _run_smoke_sequence() -> void:
 	if not smoke_cleanup_started:
 		if int(receiver.hook_counts.get("raster_overlay_attached", 0)) < 1:
 			return
+		if android_https_smoke and OS.get_name() == "Android":
+			if smoke_visual_ready_at == 0:
+				smoke_visual_ready_at = Time.get_ticks_msec()
+				print(
+					"CESIUM_ANDROID_RENDER_READY pass=",
+					"https" if smoke_pass == 1 else "local"
+				)
+				return
+			if (
+				Time.get_ticks_msec() - smoke_visual_ready_at
+				< ANDROID_VISUAL_HOLD_MILLISECONDS
+			):
+				return
 		_detach_overlay()
 		if tileset != null:
 			tileset.free()
@@ -279,8 +318,64 @@ func _run_smoke_sequence() -> void:
 	for callback_name in required_callbacks:
 		if int(receiver.hook_counts.get(callback_name, 0)) < 1:
 			return
+	if android_https_smoke and smoke_pass == 0:
+		print("CESIUM_ANDROID_LOCAL_SMOKE_PASSED")
+		smoke_pass = 1
+		smoke_deadline = Time.get_ticks_msec() + SMOKE_TIMEOUT_MILLISECONDS
+		smoke_cleanup_started = false
+		smoke_visual_ready_at = 0
+		receiver.hook_counts.clear()
+		receiver.latest_primitive = null
+		_create_tileset.call_deferred()
+		return
 	print("Cesium lifecycle/material example smoke test passed: ", receiver.hook_counts)
+	if android_https_smoke:
+		print("CESIUM_ANDROID_HTTPS_SMOKE_PASSED")
+		print("CESIUM_ANDROID_SMOKE_PASSED")
 	get_tree().quit(0)
+
+
+func _copy_android_fixture() -> bool:
+	android_fixture_directory_path = OS.get_user_data_dir().path_join(
+		ANDROID_FIXTURE_DIRECTORY.get_file()
+	)
+	var directory_error := DirAccess.make_dir_recursive_absolute(
+		android_fixture_directory_path
+	)
+	if directory_error != OK:
+		_smoke_fail(
+			"could not create Android fixture directory (error %d)"
+			% directory_error
+		)
+		return false
+	var fixture_files := {
+		"tileset.json": "tileset.json",
+		"triangle.gltfraw": "triangle.gltf",
+	}
+	for source_filename: String in fixture_files:
+		var destination_filename: String = fixture_files[source_filename]
+		var source := FileAccess.open(
+			"res://fixtures/" + source_filename,
+			FileAccess.READ
+		)
+		if source == null:
+			_smoke_fail("could not open packaged fixture: %s" % source_filename)
+			return false
+		var bytes := source.get_buffer(source.get_length())
+		source.close()
+		var destination := FileAccess.open(
+			android_fixture_directory_path.path_join(destination_filename),
+			FileAccess.WRITE
+		)
+		if destination == null:
+			_smoke_fail(
+				"could not create Android fixture: %s" % destination_filename
+			)
+			return false
+		destination.store_buffer(bytes)
+		destination.close()
+	print("CESIUM_ANDROID_PACKAGED_FIXTURE_COPIED")
+	return true
 
 
 func _run_benchmark_route() -> void:
@@ -346,6 +441,7 @@ func _run_benchmark_route() -> void:
 
 
 func _smoke_fail(message: String) -> void:
+	print("CESIUM_SMOKE_FAILURE ", message)
 	push_error("Cesium lifecycle/material example smoke test failed: " + message)
 	get_tree().quit(1)
 

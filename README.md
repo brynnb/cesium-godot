@@ -41,8 +41,10 @@ The integration currently targets Cesium Native 0.63.0 and supports Godot
 4.6.3 through 4.7.2. Release binaries retain a Godot 4.6.3 compatibility floor,
 and the runtime and editor plugin are tested against both ends of that range.
 Linux x86_64 is the primary tested platform; Windows x86_64, macOS arm64, and
-Android arm64 are part of the build matrix. Android support is new and should
-be considered experimental until it has broader device coverage. Runtime
+Android arm64 are part of the build matrix. Android also has an x86_64
+end-to-end emulator test for APK startup, local and HTTPS streaming, rendering,
+unloading, and relaunch. Android support is new and should be considered
+experimental until it has broader physical-device coverage. Runtime
 support is substantially further along than the editor workflow, which should
 also be considered experimental.
 
@@ -65,7 +67,8 @@ addon is written to `godot3dtiles/addons/cesium_godot/`.
 See the [reproducible build guide](docs/REPRODUCIBLE_BUILDS.md) for supported
 platforms, dependency overrides, and cleanup.
 
-Android arm64 builds use the locked Android NDK and are documented in the
+Android arm64 builds and the headless x86_64 emulator test use the locked
+Android NDK and are documented in the
 [Android build guide](docs/BUILD_ANDROID.md).
 
 Windows contributors can generate an optional Visual Studio 2026 solution

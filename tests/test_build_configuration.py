@@ -83,6 +83,7 @@ class BuildConfigurationTests(unittest.TestCase):
             ("windows", "x64"): "Godot3DTiles.windows.template_release.x86_64.dll",
             ("macos", "arm64"): "libGodot3DTiles.macos.template_release.arm64.dylib",
             ("android", "arm64"): "libGodot3DTiles.android.template_release.arm64.so",
+            ("android", "x86_64"): "libGodot3DTiles.android.template_release.x86_64.so",
         }
         for target, filename in expected.items():
             self.assertEqual(BUILD_EXTENSION._expected_output(*target).name, filename)
@@ -147,6 +148,7 @@ class BuildConfigurationTests(unittest.TestCase):
 
         self.assertEqual(lock["toolchain"]["android_ndk"], "28.1.13356709")
         self.assertIn('return "arm64-android"', build_utils)
+        self.assertIn('return "x64-android"', build_utils)
         self.assertIn("get_android_ndk_root()", build_utils)
         self.assertIn('"-DANDROID_PLATFORM=android-24"', build_utils)
         self.assertIn("get_compile_flags(ARGUMENTS)", orchestrator)
@@ -155,6 +157,7 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertIn('target_platform == "android"', extension_build)
         self.assertIn("CESIUM_GODOT_NO_LITEHTML", extension_build)
         self.assertIn('(\"android\", \"arm64\")', wrapper)
+        self.assertIn('(\"android\", \"x86_64\")', wrapper)
 
         network = (
             ROOT

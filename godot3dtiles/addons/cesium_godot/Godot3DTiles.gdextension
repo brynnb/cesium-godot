@@ -14,6 +14,8 @@ macos.debug.arm64 = "res://addons/cesium_godot/lib/libGodot3DTiles.macos.templat
 macos.release.arm64 = "res://addons/cesium_godot/lib/libGodot3DTiles.macos.template_release.arm64.dylib"
 android.debug.arm64 = "res://addons/cesium_godot/lib/libGodot3DTiles.android.template_release.arm64.so"
 android.release.arm64 = "res://addons/cesium_godot/lib/libGodot3DTiles.android.template_release.arm64.so"
+android.debug.x86_64 = "res://addons/cesium_godot/lib/libGodot3DTiles.android.template_release.x86_64.so"
+android.release.x86_64 = "res://addons/cesium_godot/lib/libGodot3DTiles.android.template_release.x86_64.so"
 
 
 [icons]

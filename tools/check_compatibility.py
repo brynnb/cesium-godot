@@ -74,6 +74,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
         "macos.release.arm64",
         "android.debug.arm64",
         "android.release.arm64",
+        "android.debug.x86_64",
+        "android.release.x86_64",
     }
     for manifest_path in manifests:
         manifest = _read_extension(manifest_path)
