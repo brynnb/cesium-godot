@@ -96,6 +96,28 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
     return parser.parse_args(arguments)
 
 
+def _resolve_android_ndk_root(environment: dict[str, str], version: str) -> Path:
+    """Prefer the locked side-by-side SDK NDK over a host's stale default."""
+    sdk_root = (
+        environment.get("ANDROID_HOME", "").strip()
+        or environment.get("ANDROID_SDK_ROOT", "").strip()
+    )
+    if sdk_root:
+        locked_sdk_ndk = Path(sdk_root).expanduser() / "ndk" / version
+        if (locked_sdk_ndk / "build/cmake/android.toolchain.cmake").is_file():
+            return locked_sdk_ndk
+
+    explicit_ndk = environment.get("ANDROID_NDK_ROOT", "").strip()
+    if explicit_ndk:
+        return Path(explicit_ndk).expanduser()
+    if not sdk_root:
+        raise SystemExit(
+            "Android builds require ANDROID_HOME or ANDROID_NDK_ROOT; "
+            f"install NDK {version}"
+        )
+    return Path(sdk_root).expanduser() / "ndk" / version
+
+
 def main(arguments: Sequence[str] | None = None) -> int:
     args = parse_arguments(arguments)
     if args.jobs < 1:
@@ -126,22 +148,11 @@ def main(arguments: Sequence[str] | None = None) -> int:
     lock = json.loads((ROOT / "dependencies.lock.json").read_text(encoding="utf-8"))
     if args.platform == "android":
         ndk_version = lock["toolchain"]["android_ndk"]
-        ndk_root = environment.get("ANDROID_NDK_ROOT", "").strip()
-        if not ndk_root:
-            sdk_root = (
-                environment.get("ANDROID_HOME", "").strip()
-                or environment.get("ANDROID_SDK_ROOT", "").strip()
-            )
-            if not sdk_root:
-                raise SystemExit(
-                    "Android builds require ANDROID_HOME or ANDROID_NDK_ROOT; "
-                    f"install NDK {ndk_version}"
-                )
-            ndk_root = str(Path(sdk_root).expanduser() / "ndk" / ndk_version)
-        if not (Path(ndk_root) / "build/cmake/android.toolchain.cmake").is_file():
+        ndk_root = _resolve_android_ndk_root(environment, ndk_version)
+        if not (ndk_root / "build/cmake/android.toolchain.cmake").is_file():
             raise SystemExit(f"locked Android NDK {ndk_version} is missing at {ndk_root}")
-        environment["ANDROID_NDK_ROOT"] = ndk_root
-        environment["ANDROID_NDK_HOME"] = ndk_root
+        environment["ANDROID_NDK_ROOT"] = str(ndk_root)
+        environment["ANDROID_NDK_HOME"] = str(ndk_root)
 
     bootstrap = [
         sys.executable,

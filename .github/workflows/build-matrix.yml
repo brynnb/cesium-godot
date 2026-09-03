@@ -104,6 +104,10 @@ jobs:
             exit 1
           fi
           "$sdkmanager_bin" --install "ndk;28.1.13356709"
+          locked_ndk="$sdk_root/ndk/28.1.13356709"
+          test -f "$locked_ndk/build/cmake/android.toolchain.cmake"
+          echo "ANDROID_NDK_ROOT=$locked_ndk" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$locked_ndk" >> "$GITHUB_ENV"
 
       - name: Configure short Windows dependency root
         if: runner.os == 'Windows'

@@ -8,6 +8,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
 
@@ -20,6 +21,27 @@ SPEC.loader.exec_module(BUILD_EXTENSION)
 
 
 class BuildConfigurationTests(unittest.TestCase):
+    def test_android_ndk_resolution_prefers_locked_sdk_version(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            sdk = root / "sdk"
+            locked_ndk = sdk / "ndk" / "28.1.13356709"
+            stale_ndk = sdk / "ndk" / "27.3.13750724"
+            for ndk in (locked_ndk, stale_ndk):
+                toolchain = ndk / "build/cmake/android.toolchain.cmake"
+                toolchain.parent.mkdir(parents=True)
+                toolchain.touch()
+
+            resolved = BUILD_EXTENSION._resolve_android_ndk_root(
+                {
+                    "ANDROID_HOME": str(sdk),
+                    "ANDROID_NDK_ROOT": str(stale_ndk),
+                },
+                "28.1.13356709",
+            )
+
+            self.assertEqual(resolved, locked_ndk)
+
     def test_locked_build_tools_match_ci_and_documentation(self) -> None:
         lock = json.loads(
             (ROOT / "dependencies.lock.json").read_text(encoding="utf-8")
