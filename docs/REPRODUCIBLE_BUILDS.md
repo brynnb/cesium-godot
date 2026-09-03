@@ -15,7 +15,7 @@ Install Git and a C++20 compiler, then install the tool versions recorded in
 `dependencies.lock.json`:
 
 ```bash
-python3 -m pip install scons==4.8.1 cmake==3.31.6 ninja==1.13.0
+python3 -m pip install scons==4.11.1 cmake==4.4.3 ninja==1.13.0
 python3 tools/build_extension.py --jobs 12
 ```
 

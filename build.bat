@@ -1,2 +1,2 @@
-scons arch=x64 compileTarget=extension target=template_release production=yes compiledb=yes
-pause
+@echo off
+python tools\build_extension.py --platform windows --arch x64 --jobs 4 %*

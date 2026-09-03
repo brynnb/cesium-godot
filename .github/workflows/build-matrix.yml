@@ -80,7 +80,7 @@ jobs:
         run: brew install pkg-config
 
       - name: Install locked build tools
-        run: python -m pip install scons==4.8.1 cmake==3.31.6 ninja==1.13.0
+        run: python -m pip install scons==4.11.1 cmake==4.4.3 ninja==1.13.0
 
       - name: Configure short Windows dependency root
         if: runner.os == 'Windows'
@@ -123,6 +123,10 @@ jobs:
           --precision ${{ matrix.precision }}
           --jobs 4
           --json
+
+      - name: Validate Visual Studio 2026 solution generation
+        if: runner.os == 'Windows'
+        run: python tools/generate_visual_studio.py --json
 
       - name: Verify locked dependency trees after build
         run: python tools/bootstrap_dependencies.py --verify-only --json

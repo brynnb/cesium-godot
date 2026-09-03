@@ -1,0 +1,124 @@
+"""Generate a Visual Studio 2026 makefile project backed by SCons."""
+
+import json
+import os
+from pathlib import Path
+import re
+
+import SCons
+
+
+ROOT = Path(Dir("#").abspath)
+lock = json.loads((ROOT / "dependencies.lock.json").read_text(encoding="utf-8"))
+locked_scons = lock["toolchain"]["scons"]
+if ".".join(SCons.__version__.split(".")[:3]) != locked_scons:
+    Exit(f"locked SCons {locked_scons} is required; found {SCons.__version__}")
+
+
+def relative_files(roots, suffixes):
+    paths = []
+    for relative_root in roots:
+        root = ROOT / relative_root
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if path.is_file() and path.suffix.lower() in suffixes:
+                paths.append(path.relative_to(ROOT).as_posix())
+    return sorted(paths)
+
+
+headers = relative_files(("cesium_godot", "cesium_auxiliars"), {".h", ".hh", ".hpp"})
+misc = sorted(
+    [
+        "CesiumBuildUtils.py",
+        "SConstruct.py",
+        "SConstruct.visual_studio",
+        "dependencies.lock.json",
+        "README.md",
+    ]
+    + [path.relative_to(ROOT).as_posix() for path in (ROOT / "tools").glob("*.py")]
+)
+
+godot_cpp_root = Path(
+    os.environ.get(
+        "CESIUM_GODOT_GODOT_CPP_ROOT",
+        ROOT / "build/dependencies/sources/godot-cpp",
+    )
+)
+native_root = Path(
+    os.environ.get(
+        "CESIUM_GODOT_NATIVE_ROOT",
+        ROOT / "build/dependencies/sources/cesium-native",
+    )
+)
+vcpkg_root = Path(
+    os.environ.get(
+        "CESIUM_GODOT_VCPKG_ROOT",
+        ROOT / "build/dependencies/vcpkg" / lock["dependencies"]["vcpkg"]["baseline"],
+    )
+)
+
+include_paths = [
+    ROOT / "cesium_godot",
+    ROOT / "cesium_auxiliars",
+    godot_cpp_root / "include",
+    godot_cpp_root / "gen/include",
+    vcpkg_root / "installed/x64-windows-static/include",
+]
+scsub = (ROOT / "cesium_godot/SCsub").read_text(encoding="utf-8-sig")
+sources = sorted(
+    [
+        "cesium_godot/" + entry.lstrip("/")
+        for entry in re.findall(
+            r'get_root_dir\(\) \+ "(/[^"]+\.(?:c|cc|cpp))"',
+            scsub,
+        )
+    ]
+    + relative_files(("cesium_auxiliars",), {".c", ".cc", ".cpp"})
+)
+native_modules = sorted(set(re.findall(r'load_cesium_module\(includePaths, "([^"]+)"', scsub)))
+for module in native_modules:
+    include_paths.extend((native_root / module / "include", native_root / module / "generated/include"))
+
+env = Environment(
+    tools=["msvs"],
+    MSVC_VERSION="14.5",
+    CPPPATH=[str(path) for path in include_paths],
+    CPPDEFINES=["CESIUM_GD_EXT", "SPDLOG_NO_EXCEPTIONS", "LIBASYNC_NO_EXCEPTIONS"],
+    MSVSBUILDCOM=(
+        'python "$(ProjectDir)tools\\build_visual_studio.py" build '
+        '"$MSVSBUILDTARGET" --jobs 4'
+    ),
+    MSVSREBUILDCOM=(
+        'python "$(ProjectDir)tools\\build_visual_studio.py" rebuild '
+        '"$MSVSBUILDTARGET" --jobs 4'
+    ),
+    MSVSCLEANCOM=(
+        'python "$(ProjectDir)tools\\build_visual_studio.py" clean '
+        '"$MSVSBUILDTARGET" --jobs 4'
+    ),
+)
+
+debug_settings = {
+    "LocalDebuggerCommand": "$(GODOT4_BIN)",
+    "LocalDebuggerWorkingDirectory": "$(ProjectDir)examples\\lifecycle_material_demo",
+    "LocalDebuggerCommandArguments": (
+        '--path "$(ProjectDir)examples\\lifecycle_material_demo"'
+    ),
+}
+project = env.MSVSProject(
+    target="CesiumForGodot.vcxproj",
+    srcs=sources,
+    incs=headers,
+    misc=misc,
+    buildtarget=["debug", "release"],
+    runfile=[
+        "godot3dtiles/addons/cesium_godot/lib/Godot3DTiles.windows.template_release.x86_64.dll",
+        "godot3dtiles/addons/cesium_godot/lib/Godot3DTiles.windows.template_release.x86_64.dll",
+    ],
+    variant=["Debug|x64", "Release|x64"],
+    DebugSettings=[debug_settings, debug_settings],
+    auto_build_solution=True,
+    nokeep=True,
+)
+Default(project)

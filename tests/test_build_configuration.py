@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import contextlib
 import io
+import json
 from pathlib import Path
 import unittest
 
@@ -19,6 +20,25 @@ SPEC.loader.exec_module(BUILD_EXTENSION)
 
 
 class BuildConfigurationTests(unittest.TestCase):
+    def test_locked_build_tools_match_ci_and_documentation(self) -> None:
+        lock = json.loads(
+            (ROOT / "dependencies.lock.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(lock["toolchain"]["scons"], "4.11.1")
+        self.assertEqual(lock["toolchain"]["cmake"], "4.4.3")
+        expected_install = "scons==4.11.1 cmake==4.4.3 ninja==1.13.0"
+        for relative_path in (
+            ".github/workflows/build-matrix.yml",
+            "docs/BUILD_MACOS.md",
+            "docs/BUILD_VISUAL_STUDIO.md",
+            "docs/REPRODUCIBLE_BUILDS.md",
+        ):
+            self.assertIn(
+                expected_install,
+                (ROOT / relative_path).read_text(encoding="utf-8"),
+                relative_path,
+            )
+
     def test_lifecycle_demo_registers_the_extension_on_a_clean_checkout(self) -> None:
         extension_list = (
             ROOT / "examples/lifecycle_material_demo/.godot/extension_list.cfg"
@@ -164,6 +184,29 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertIn('if env["platform"] == "linux":', orchestrator)
         self.assertIn('env["ARCOM_RESPONSE"] = env["ARCOM"]', orchestrator)
         self.assertIn('env["ARCOM"] = "${TEMPFILE(ARCOM_RESPONSE)}"', orchestrator)
+
+    def test_visual_studio_solution_is_a_front_end_to_the_canonical_build(self) -> None:
+        generator = (ROOT / "SConstruct.visual_studio").read_text(encoding="utf-8")
+        bridge = (ROOT / "tools/build_visual_studio.py").read_text(encoding="utf-8")
+        wrapper = (ROOT / "tools/generate_visual_studio.py").read_text(
+            encoding="utf-8"
+        )
+        workflow = (ROOT / ".github/workflows/build-matrix.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('MSVC_VERSION="14.5"', generator)
+        self.assertIn('variant=["Debug|x64", "Release|x64"]', generator)
+        self.assertIn("tools\\\\build_visual_studio.py", generator)
+        self.assertIn('ROOT / "tools" / "build_extension.py"', bridge)
+        self.assertIn('"debug_symbols=yes"', bridge)
+        self.assertIn('"SConstruct.visual_studio"', wrapper)
+        self.assertIn("<PlatformToolset>v145</PlatformToolset>", wrapper)
+        self.assertIn('if compiled_sources != 86:', wrapper)
+        self.assertIn(
+            "Validate Visual Studio 2026 solution generation",
+            workflow,
+        )
 
 
 if __name__ == "__main__":

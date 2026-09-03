@@ -81,6 +81,11 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
     )
     parser.add_argument("--jobs", type=int, default=max(1, os.cpu_count() or 1))
     parser.add_argument("--skip-native", action="store_true")
+    parser.add_argument(
+        "--debug-symbols",
+        action="store_true",
+        help="retain native debug symbols while keeping the packaged release ABI",
+    )
     parser.add_argument("--verify-only", action="store_true")
     parser.add_argument("--json", action="store_true", dest="json_output")
     return parser.parse_args(arguments)
@@ -128,6 +133,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
         f"target={args.target}",
         f"buildCesium={'no' if args.skip_native else 'yes'}",
     ]
+    if args.debug_symbols:
+        command.append("debug_symbols=yes")
     _run(command, environment)
 
     output = _expected_output(

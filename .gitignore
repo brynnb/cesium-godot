@@ -68,4 +68,5 @@ examples/**/*.import
 *.ipch
 *.vcxproj
 *.vcxproj.filters
+*.vcxproj.user
 *.dblite

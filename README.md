@@ -43,7 +43,7 @@ editor workflow, which should be considered experimental.
 
 ## Building
 
-Install a C++20 compiler, Git, Python 3.11, SCons 4.8.1, CMake 3.31.6, and
+Install a C++20 compiler, Git, Python 3.11, SCons 4.11.1, CMake 4.4.3, and
 Ninja 1.13.0. On Linux, install the libcurl OpenSSL development package as
 well. Then run:
 
@@ -59,6 +59,16 @@ addon is written to `godot3dtiles/addons/cesium_godot/`.
 
 See the [reproducible build guide](docs/REPRODUCIBLE_BUILDS.md) for supported
 platforms, dependency overrides, and cleanup.
+
+Windows contributors can generate an optional Visual Studio 2026 solution
+whose Build, Rebuild, and Clean commands delegate to this same locked build:
+
+```powershell
+python tools/generate_visual_studio.py
+```
+
+See the [Visual Studio contributor guide](docs/BUILD_VISUAL_STUDIO.md). The
+solution is a local IDE front end and does not introduce a second build system.
 
 ## Using the addon
 

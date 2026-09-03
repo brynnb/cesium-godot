@@ -10,8 +10,8 @@
   },
   "toolchain": {
     "python": "3.11.9",
-    "scons": "4.8.1",
-    "cmake": "3.31.6",
+    "scons": "4.11.1",
+    "cmake": "4.4.3",
     "ninja": "1.13.0"
   },
   "dependencies": {
