@@ -108,6 +108,7 @@ class BuildConfigurationTests(unittest.TestCase):
             "Test editor dock on Godot 4.7.2",
             "tests/run_editor_tests.sh",
             "tests/run_editor_tests.ps1",
+            "tests/run_2dog_tests.ps1",
             "--smoke-test",
             "tools/bootstrap_dependencies.py --verify-only",
             "undefined symbol:",

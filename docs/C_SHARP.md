@@ -147,13 +147,22 @@ The separate `tests/csharp-2dog` fixture embeds Godot through
 contracts under xUnit. It is intentionally a compatibility lane, not the
 supported runtime baseline: the addon remains targeted and directly tested on
 Godot 4.6.3 with .NET 8, while the pinned 2dog packages use Godot 4.7.2 with
-.NET 10. This 2dog/xUnit lane currently runs on Linux only.
+.NET 10. This 2dog/xUnit lane runs on Linux and Windows.
 
 Run it after building the Linux extension:
 
 ```bash
 DOTNET10_BIN=/path/to/dotnet tests/run_2dog_tests.sh
 ```
+
+On Windows, run the same contracts against the packaged DLL with:
+
+```powershell
+./tests/run_2dog_tests.ps1
+```
+
+The Windows runner stages a real copy of the addon because Git symlinks are not
+reliably materialized on Windows checkouts.
 
 The package versions and restore graphs are locked in the fixture. The test
 runner creates only ignored Godot import state and ordinary .NET build output;

@@ -163,6 +163,12 @@ separate from the supported Godot 4.6.3/.NET 8 runtime baseline:
 DOTNET10_BIN=/path/to/dotnet tests/run_2dog_tests.sh
 ```
 
+The same pinned fixture runs against the freshly built Windows DLL with:
+
+```powershell
+./tests/run_2dog_tests.ps1
+```
+
 ## Contributing
 
 Issues and focused pull requests are welcome. Please keep engine-specific code
