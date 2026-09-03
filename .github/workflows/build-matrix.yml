@@ -42,25 +42,25 @@ jobs:
             platform: linux
             arch: x64
             precision: single
-            artifact: godot3dtiles-linux-x86_64
+            artifact: cesium-godot-linux-x86_64
           - name: Windows x86_64
             os: windows-2022
             platform: windows
             arch: x64
             precision: single
-            artifact: godot3dtiles-windows-x86_64
+            artifact: cesium-godot-windows-x86_64
           - name: macOS 15 arm64
             os: macos-15
             platform: macos
             arch: arm64
             precision: single
-            artifact: godot3dtiles-macos-arm64
+            artifact: cesium-godot-macos-arm64
           - name: Android arm64
             os: ubuntu-24.04
             platform: android
             arch: arm64
             precision: single
-            artifact: godot3dtiles-android-arm64
+            artifact: cesium-godot-android-arm64
 
     steps:
       - name: Checkout repository
@@ -166,7 +166,7 @@ jobs:
       - name: Check Linux shared-library resolution
         if: matrix.platform == 'linux'
         run: |
-          resolution="$(ldd -r godot3dtiles/addons/cesium_godot/lib/libGodot3DTiles.linux.template_release.x86_64.so 2>&1)"
+          resolution="$(ldd -r addons/cesium_godot/lib/libCesiumGodot.linux.template_release.x86_64.so 2>&1)"
           printf '%s\n' "$resolution"
           ! grep -q 'undefined symbol:' <<< "$resolution"
 
@@ -211,7 +211,7 @@ jobs:
       - name: Verify Android ARM64 shared library
         if: matrix.platform == 'android'
         run: |
-          library=godot3dtiles/addons/cesium_godot/lib/libGodot3DTiles.android.template_release.arm64.so
+          library=addons/cesium_godot/lib/libCesiumGodot.android.template_release.arm64.so
           readelf -h "$library" | tee build/android-elf-header.txt
           grep -q 'Machine:.*AArch64' build/android-elf-header.txt
           readelf -d "$library" | tee build/android-dynamic-section.txt
@@ -259,5 +259,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.artifact }}
-          path: godot3dtiles/addons/cesium_godot
+          path: |
+            addons/cesium_godot
+            !addons/cesium_godot/**/*.uid
+            !addons/cesium_godot/**/*.import
           if-no-files-found: error

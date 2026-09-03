@@ -49,7 +49,7 @@ CesiumGDConfig* CesiumGDConfig::get_singleton(Node* baseNode) {
 		return s_instance;
 	}
 	
-	s_instance = Godot3DTiles::AssetManipulation::find_or_create_config_node(baseNode);
+	s_instance = CesiumGodot::AssetManipulation::find_or_create_config_node(baseNode);
 
 	
 	// Write to cache

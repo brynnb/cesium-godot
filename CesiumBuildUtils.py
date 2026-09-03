@@ -1,7 +1,6 @@
 # This file contains utility functions to build CesiumForGodot in SCons
 import subprocess
 import os
-import shutil
 import sys
 import json
 from pathlib import Path
@@ -254,75 +253,6 @@ def clone_bindings_repo_if_needed():
 
 def ensure_vcpkg():
     _bootstrap_dependency("vcpkg", get_vcpkg_root())
-
-
-def clone_lite_html_if_needed():
-    # clone_repo_if_needed(ROOT_DIR_EXT + "/third_party/lite-html", "Lite HTML",
-    #                      "https://github.com/litehtml/litehtml.git", "v0.9", "6ca1ab0419e770e6d35a1ef690238773a1dafcee")
-    pass
-
-
-def build_litehtml(arch="arm64"):
-    """Build litehtml from source for the given architecture."""
-    third_party_dir = scons_to_abs_path(ROOT_DIR_EXT + "/third_party")
-    source_dir = os.path.join(third_party_dir, "litehtml-src")
-    output_dir = os.path.join(third_party_dir, "litehtml", "macos")
-
-    # Check if already built
-    if os.path.exists(os.path.join(output_dir, "liblitehtml.a")):
-        print("litehtml already built for macOS, skipping...")
-        return
-
-    if not os.path.exists(source_dir):
-        print("litehtml source not found at %s" % source_dir, file=sys.stderr)
-        return
-
-    print("Building litehtml from source for macOS...")
-
-    build_dir = os.path.join(source_dir, "build-macos")
-    os.makedirs(build_dir, exist_ok=True)
-    os.makedirs(output_dir, exist_ok=True)
-
-    prev_dir = os.getcwd()
-    os.chdir(build_dir)
-
-    # Configure with CMake
-    result = subprocess.run([
-        "cmake",
-        "-DCMAKE_BUILD_TYPE=Release",
-        f"-DCMAKE_OSX_ARCHITECTURES={arch}",
-        "-DLITEHTML_BUILD_TESTING=OFF",
-        ".."
-    ])
-
-    if result.returncode != 0:
-        print("Failed to configure litehtml", file=sys.stderr)
-        os.chdir(prev_dir)
-        return
-
-    # Build
-    result = subprocess.run(["cmake", "--build", ".", "--config", "Release"])
-
-    if result.returncode != 0:
-        print("Failed to build litehtml", file=sys.stderr)
-        os.chdir(prev_dir)
-        return
-
-    # Copy output libraries
-    for lib in ["liblitehtml.a", "libgumbo.a"]:
-        src = os.path.join(build_dir, lib)
-        if not os.path.exists(src):
-            # Try in subdirectories
-            for root, dirs, files in os.walk(build_dir):
-                if lib in files:
-                    src = os.path.join(root, lib)
-                    break
-        if os.path.exists(src):
-            shutil.copy2(src, output_dir)
-            print(f"Copied {lib} to {output_dir}")
-
-    os.chdir(prev_dir)
-    print("litehtml build complete!")
 
 
 # Configure with CMake

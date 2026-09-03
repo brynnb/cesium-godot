@@ -28,12 +28,12 @@ python3 tools/build_extension.py --platform macos --arch arm64 --jobs 8
 The output is:
 
 ```text
-godot3dtiles/addons/cesium_godot/lib/libGodot3DTiles.macos.template_release.arm64.dylib
+addons/cesium_godot/lib/libCesiumGodot.macos.template_release.arm64.dylib
 ```
 
 Both editor/debug and release manifest keys intentionally load this release
 library, as the Linux and Windows packages already do. Copy
-`godot3dtiles/addons/cesium_godot` into a project's `addons/` directory and
+`addons/cesium_godot` into a project's `addons/` directory and
 enable its editor plugin.
 
 All generated sources, vcpkg packages, and build products are under the visible

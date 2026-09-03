@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import CesiumBuildUtils as cesium_build_utils
 
-LIB_NAME = "Godot3DTiles"
+LIB_NAME = "CesiumGodot"
 
 # Glob source files
 sources = Glob("cesium_auxiliars/*.cpp")
@@ -17,13 +17,8 @@ if (cesium_build_utils.is_extension_target(ARGUMENTS)):
 
 cesium_build_utils.clone_native_repo_if_needed()
 cesium_build_utils.ensure_vcpkg()
-cesium_build_utils.clone_lite_html_if_needed()
 
 cesium_build_utils.compile_native(ARGUMENTS)
-
-# Build litehtml from source on macOS (no pre-built binaries available)
-if cesium_build_utils.get_target_platform(ARGUMENTS) == "macos":
-    cesium_build_utils.build_litehtml()
 
 # godot-cpp validates its own command line and would otherwise report this
 # repository's two orchestration arguments as unknown. Hide only those values
@@ -75,14 +70,14 @@ SConscript("cesium_godot/SCsub", exports="env")
 # Create shared library
 if env["platform"] == "macos":
     library = env.SharedLibrary(
-        "godot3dtiles/addons/cesium_godot/lib/lib{}{}{}".format(
+        "addons/cesium_godot/lib/lib{}{}{}".format(
             LIB_NAME, env["suffix"], env["SHLIBSUFFIX"]
         ),
         source=sources,
     )
 else:
     library = env.SharedLibrary(
-        "godot3dtiles/addons/cesium_godot/lib/{}{}{}".format(
+        "addons/cesium_godot/lib/{}{}{}".format(
             LIB_NAME, env["suffix"], env["SHLIBSUFFIX"]),
         source=sources,
     )

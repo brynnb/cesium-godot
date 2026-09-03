@@ -5608,12 +5608,12 @@ void Cesium3DTileset::_ready() {
 	}
 	if (!is_editor_mode()) return;
 	Node* root = this->get_tree()->get_root();
-	Camera3D* foundCamera = Godot3DTiles::AssetManipulation::find_georef_cam(root);
+	Camera3D* foundCamera = CesiumGodot::AssetManipulation::find_georef_cam(root);
 	if (foundCamera == nullptr) {
 		WARN_PRINT("Could not find a Cesium Dynamic camera, try adding it manually in the Cesium Ion Panel");
 		return;
 	}
-	Godot3DTiles::AssetManipulation::update_camera_tilesets(foundCamera);
+	CesiumGodot::AssetManipulation::update_camera_tilesets(foundCamera);
 }
 
 void Cesium3DTileset::_exit_tree() {
@@ -5642,7 +5642,7 @@ void Cesium3DTileset::_enter_tree() {
 		this->is_georeferenced(&this->m_georeference);
 		return;
 	}
-	CesiumGeoreference* globe = Godot3DTiles::AssetManipulation::find_or_create_globe(this);
+	CesiumGeoreference* globe = CesiumGodot::AssetManipulation::find_or_create_globe(this);
 	if (globe == nullptr) {
 		return;
 	}

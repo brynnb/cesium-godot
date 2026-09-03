@@ -50,8 +50,7 @@ disagree. See
 - the ordered, hashed downstream Native patches under
   `dependencies/cesium-native-patches`;
 - the vcpkg baseline;
-- the MikkTSpace source hashes and upstream commit;
-- every bundled litehtml/gumbo archive hash; and
+- the MikkTSpace source hashes and upstream commit; and
 - the CI Python, SCons, CMake, Ninja, and Android NDK versions.
 
 `tools/bootstrap_dependencies.py` refuses an unexpected origin, commit/tree,
@@ -81,7 +80,7 @@ selected home-cache directory. `du -sh build` reports its complete local size.
 Deleting `build/` removes all provisioned sources, Native build products,
 vcpkg packages, and downloaded test engines; the next build recreates them
 from the lock. The distributable addon remains under
-`godot3dtiles/addons/cesium_godot`.
+`addons/cesium_godot`.
 
 An existing exact vcpkg checkout can be reused explicitly without creating a
 second package tree:

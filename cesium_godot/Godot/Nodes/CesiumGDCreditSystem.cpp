@@ -465,7 +465,7 @@ CesiumGDCreditSystem* CesiumGDCreditSystem::get_singleton(Node* context) {
 	ERR_FAIL_NULL_V(tree, nullptr);
 
 	CesiumGDCreditSystem* result =
-		Godot3DTiles::AssetManipulation::find_or_create_credit_system(
+		CesiumGodot::AssetManipulation::find_or_create_credit_system(
 			context,
 			false
 		);

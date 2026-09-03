@@ -11,7 +11,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK_PATH = ROOT / "dependencies/csharp-bindgen.lock.json"
-OUTPUT = ROOT / "godot3dtiles/addons/cesium_godot/csharp"
+OUTPUT = ROOT / "addons/cesium_godot/csharp"
 
 
 class CSharpBindingTests(unittest.TestCase):

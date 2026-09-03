@@ -16,7 +16,7 @@ using namespace godot;
 class CesiumGeoreference;
 
 
-namespace Godot3DTiles::AssetManipulation {
+namespace CesiumGodot::AssetManipulation {
 
   enum class TilesetType : int32_t {
     Blank,

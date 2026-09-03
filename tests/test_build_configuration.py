@@ -8,6 +8,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
@@ -21,6 +22,33 @@ SPEC.loader.exec_module(BUILD_EXTENSION)
 
 
 class BuildConfigurationTests(unittest.TestCase):
+    def test_canonical_addon_layout_and_product_identity(self) -> None:
+        addon = ROOT / "addons/cesium_godot"
+        descriptor = addon / "CesiumGodot.gdextension"
+        self.assertTrue(descriptor.is_file())
+        self.assertFalse((ROOT / "godot3dtiles").exists())
+        self.assertFalse((ROOT / "finder.py").exists())
+        self.assertFalse((ROOT / "readme_resources").exists())
+
+        descriptor_source = descriptor.read_text(encoding="utf-8")
+        self.assertIn('entry_symbol = "cesium_godot_init"', descriptor_source)
+        self.assertIn("libCesiumGodot.linux", descriptor_source)
+        self.assertNotIn("Godot3DTiles", descriptor_source)
+
+        plugin_source = (addon / "plugin.cfg").read_text(encoding="utf-8")
+        version_header = (
+            ROOT / "cesium_godot/Runtime/Public/CesiumGodotVersion.h"
+        ).read_text(encoding="utf-8")
+        plugin_version = re.search(r'^version="([^"]+)"$', plugin_source, re.MULTILINE)
+        runtime_version = re.search(
+            r'^inline constexpr const char\* Version = "([^"]+)";$',
+            version_header,
+            re.MULTILINE,
+        )
+        self.assertIsNotNone(plugin_version)
+        self.assertIsNotNone(runtime_version)
+        self.assertEqual(plugin_version.group(1), runtime_version.group(1))
+
     def test_android_ndk_resolution_prefers_locked_sdk_version(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -67,7 +95,7 @@ class BuildConfigurationTests(unittest.TestCase):
         )
         self.assertEqual(
             extension_list.read_text(encoding="utf-8"),
-            "res://Godot3DTiles.gdextension\n",
+            "res://CesiumGodot.gdextension\n",
         )
 
     def test_editor_fixture_enables_the_packaged_plugin(self) -> None:
@@ -75,7 +103,7 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertTrue((fixture / "addons/cesium_godot").is_symlink())
         self.assertEqual(
             (fixture / "addons/cesium_godot").resolve(),
-            (ROOT / "godot3dtiles/addons/cesium_godot").resolve(),
+            (ROOT / "addons/cesium_godot").resolve(),
         )
         project = (fixture / "project.godot").read_text(encoding="utf-8")
         self.assertIn('"res://addons/cesium_godot/plugin.cfg"', project)
@@ -90,7 +118,7 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertIn('find_child("Cesium Ion Panel", true, false)', smoke_test)
 
     def test_editor_panels_do_not_require_imported_icons_to_register(self) -> None:
-        addon = ROOT / "godot3dtiles/addons/cesium_godot"
+        addon = ROOT / "addons/cesium_godot"
         for relative_path in (
             "cesium_godot.gd",
             "panels/cesium_panel.tscn",
@@ -101,11 +129,11 @@ class BuildConfigurationTests(unittest.TestCase):
 
     def test_expected_artifact_names_match_gdextension_manifest(self) -> None:
         expected = {
-            ("linux", "x64"): "libGodot3DTiles.linux.template_release.x86_64.so",
-            ("windows", "x64"): "Godot3DTiles.windows.template_release.x86_64.dll",
-            ("macos", "arm64"): "libGodot3DTiles.macos.template_release.arm64.dylib",
-            ("android", "arm64"): "libGodot3DTiles.android.template_release.arm64.so",
-            ("android", "x86_64"): "libGodot3DTiles.android.template_release.x86_64.so",
+            ("linux", "x64"): "libCesiumGodot.linux.template_release.x86_64.so",
+            ("windows", "x64"): "CesiumGodot.windows.template_release.x86_64.dll",
+            ("macos", "arm64"): "libCesiumGodot.macos.template_release.arm64.dylib",
+            ("android", "arm64"): "libCesiumGodot.android.template_release.arm64.so",
+            ("android", "x86_64"): "libCesiumGodot.android.template_release.x86_64.so",
         }
         for target, filename in expected.items():
             self.assertEqual(BUILD_EXTENSION._expected_output(*target).name, filename)
@@ -113,7 +141,7 @@ class BuildConfigurationTests(unittest.TestCase):
             BUILD_EXTENSION._expected_output(
                 "linux", "x64", "template_debug"
             ).name,
-            "libGodot3DTiles.linux.template_debug.x86_64.so",
+            "libCesiumGodot.linux.template_debug.x86_64.so",
         )
 
     def test_ci_matrix_covers_supported_artifacts_and_current_runtime(self) -> None:
@@ -136,6 +164,8 @@ class BuildConfigurationTests(unittest.TestCase):
             "--smoke-test",
             "tools/bootstrap_dependencies.py --verify-only",
             "undefined symbol:",
+            "!addons/cesium_godot/**/*.uid",
+            "!addons/cesium_godot/**/*.import",
         ):
             self.assertIn(required, workflow)
         self.assertNotIn("Godot_v4.2.2", workflow)
@@ -161,7 +191,7 @@ class BuildConfigurationTests(unittest.TestCase):
             self.assertIn(required, windows)
         self.assertNotIn('"zlib",', windows)
 
-    def test_android_build_is_target_aware_and_excludes_desktop_html_archives(self) -> None:
+    def test_android_build_is_target_aware(self) -> None:
         build_utils = (ROOT / "CesiumBuildUtils.py").read_text(encoding="utf-8")
         extension_build = (ROOT / "cesium_godot/SCsub").read_text(encoding="utf-8")
         orchestrator = (ROOT / "SConstruct.py").read_text(encoding="utf-8")
@@ -177,7 +207,8 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertIn("install_additional_libs(ARGUMENTS)", orchestrator)
         self.assertIn('env["platform"] in ("linux", "android")', orchestrator)
         self.assertIn('target_platform == "android"', extension_build)
-        self.assertIn("CESIUM_GODOT_NO_LITEHTML", extension_build)
+        self.assertNotIn("litehtml", extension_build.lower())
+        self.assertNotIn("bundled_litehtml", lock["dependencies"])
         self.assertIn('(\"android\", \"arm64\")', wrapper)
         self.assertIn('(\"android\", \"x86_64\")', wrapper)
 

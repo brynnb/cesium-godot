@@ -1,9 +1,6 @@
 ﻿#include "register_types.h"
 
 
-#if !defined(CESIUM_GODOT_NO_LITEHTML)
-#include "Implementations/DocumentContainer.h"
-#endif
 #include "Models/Cesium3DTile.h"
 #include "Runtime/Public/Cesium3DTilesetLifecycleEventReceiver.h"
 #include "Runtime/Public/CesiumCameraManager.h"
@@ -117,9 +114,6 @@ void initialize_cesium_godot_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<CesiumVectorStyle>();
 	ClassDB::register_class<CesiumGeoJsonDocumentRasterOverlay>();
 	ClassDB::register_class<CesiumGDConfig>();
-#if !defined(CESIUM_GODOT_NO_LITEHTML)
-	ClassDB::register_class<DocumentContainer>();
-#endif
 	ClassDB::register_class<CesiumGDAssetBuilder>();
 	ClassDB::register_class<TokenTroubleshooting>();
 	ClassDB::register_class<GeoreferencedMesh>();
@@ -160,8 +154,7 @@ void uninitialize_cesium_godot_module(ModuleInitializationLevel p_level) {
 }
 
 extern "C" {
-	GDExtensionBool GDE_EXPORT test_cesium_init(GDExtensionInterfaceGetProcAddress p_get_proc_address, const GDExtensionClassLibraryPtr p_library, GDExtensionInitialization* r_initialization){
-		printf("%s", "Initialization of GDExtension");
+	GDExtensionBool GDE_EXPORT cesium_godot_init(GDExtensionInterfaceGetProcAddress p_get_proc_address, const GDExtensionClassLibraryPtr p_library, GDExtensionInitialization* r_initialization){
 		godot::GDExtensionBinding::InitObject init_obj(p_get_proc_address, p_library, r_initialization);
 		init_obj.register_initializer(initialize_cesium_godot_module);
 		init_obj.register_terminator(uninitialize_cesium_godot_module);

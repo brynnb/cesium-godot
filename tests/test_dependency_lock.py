@@ -42,7 +42,7 @@ class DependencyLockTests(unittest.TestCase):
             (entry["path"], entry["sha256"])
             for entry in dependencies["cesium_native"]["patches"]
         )
-        for name in ("mikktspace", "bundled_litehtml"):
+        for name in ("mikktspace",):
             locked_files.extend(dependencies[name]["files"].items())
         self.assertEqual(len(locked_files), len({path for path, _ in locked_files}))
         for relative_path, expected_hash in locked_files:
@@ -110,12 +110,12 @@ class DependencyLockTests(unittest.TestCase):
         )
         report = json.loads(result.stdout)
         self.assertEqual(report["mode"], "verify")
-        self.assertEqual(report["bundled"]["files"], 8)
+        self.assertEqual(report["bundled"]["files"], 2)
 
     def test_example_benchmark_copy_matches_the_distributable_addon(self) -> None:
         addon_script = (
             ROOT
-            / "godot3dtiles/addons/cesium_godot/scripts/cesium_streaming_benchmark.gd"
+            / "addons/cesium_godot/scripts/cesium_streaming_benchmark.gd"
         )
         example_script = (
             ROOT / "examples/lifecycle_material_demo/cesium_streaming_benchmark.gd"

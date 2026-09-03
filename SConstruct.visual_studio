@@ -113,8 +113,8 @@ project = env.MSVSProject(
     misc=misc,
     buildtarget=["debug", "release"],
     runfile=[
-        "godot3dtiles/addons/cesium_godot/lib/Godot3DTiles.windows.template_release.x86_64.dll",
-        "godot3dtiles/addons/cesium_godot/lib/Godot3DTiles.windows.template_release.x86_64.dll",
+        "addons/cesium_godot/lib/CesiumGodot.windows.template_release.x86_64.dll",
+        "addons/cesium_godot/lib/CesiumGodot.windows.template_release.x86_64.dll",
     ],
     variant=["Debug|x64", "Release|x64"],
     DebugSettings=[debug_settings, debug_settings],

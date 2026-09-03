@@ -40,27 +40,27 @@ def _expected_output(
     target: str = "template_release",
     precision: str = "single",
 ) -> Path:
-    library_dir = ROOT / "godot3dtiles" / "addons" / "cesium_godot" / "lib"
+    library_dir = ROOT / "addons" / "cesium_godot" / "lib"
     architecture_suffix = "x86_64" if architecture == "x64" else architecture
     precision_suffix = ".double" if precision == "double" else ""
     if platform_name == "windows":
         pattern = (
-            f"Godot3DTiles.windows.{target}{precision_suffix}."
+            f"CesiumGodot.windows.{target}{precision_suffix}."
             f"{architecture_suffix}.dll"
         )
     elif platform_name == "macos":
         pattern = (
-            f"libGodot3DTiles.macos.{target}{precision_suffix}."
+            f"libCesiumGodot.macos.{target}{precision_suffix}."
             f"{architecture_suffix}.dylib"
         )
     elif platform_name == "android":
         pattern = (
-            f"libGodot3DTiles.android.{target}{precision_suffix}."
+            f"libCesiumGodot.android.{target}{precision_suffix}."
             f"{architecture_suffix}.so"
         )
     else:
         pattern = (
-            f"libGodot3DTiles.linux.{target}{precision_suffix}."
+            f"libCesiumGodot.linux.{target}{precision_suffix}."
             f"{architecture_suffix}.so"
         )
     return library_dir / pattern

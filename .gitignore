@@ -28,21 +28,14 @@ godot-cpp
 
 
 
-# Ignore everything in godot3dtiles
-godot3dtiles/**
-# Except the addons subdirectory and its contents
-!godot3dtiles/addons/
-!godot3dtiles/addons/**
-
-!godot3dtiles/addons/cesium_godot/lib/
-godot3dtiles/addons/cesium_godot/lib/*
+# The top-level addon directory is the distributable package. Native libraries
+# and Godot-generated metadata are local build products.
+addons/cesium_godot/lib/*
+addons/cesium_godot/**/*.uid
+addons/cesium_godot/**/*.import
 
 !godot-html/ultralight/lib/*.lib
 !cesium_godot/third_party/litehtml/*.lib
-
-# Ignore any project import files 
-godot3dtiles/**/*.uid
-godot3dtiles/**/*.import
 
 # Headless test imports are generated beside the visible test fixture and are
 # removed by tests/run_godot_tests.sh after each run.

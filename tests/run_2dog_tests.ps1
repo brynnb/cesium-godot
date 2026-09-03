@@ -8,7 +8,7 @@ $sourceProject = Join-Path $PSScriptRoot "csharp-2dog"
 $stageRoot = Join-Path $repoRoot "build/tests/csharp-2dog-windows"
 $projectDir = Join-Path $stageRoot "csharp-2dog"
 $testProject = Join-Path $projectDir "CesiumCSharpTwoDog.Tests/CesiumCSharpTwoDog.Tests.csproj"
-$addonSource = Join-Path $repoRoot "godot3dtiles/addons/cesium_godot"
+$addonSource = Join-Path $repoRoot "addons/cesium_godot"
 
 # Windows Git checkouts do not reliably materialize repository symlinks. Stage
 # the fixture and freshly-built addon explicitly in an ignored build directory.

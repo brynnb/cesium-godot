@@ -62,8 +62,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
         )
 
     manifests = [
-        root / "godot3dtiles/addons/cesium_godot/Godot3DTiles.gdextension",
-        root / "examples/lifecycle_material_demo/Godot3DTiles.gdextension",
+        root / "addons/cesium_godot/CesiumGodot.gdextension",
+        root / "examples/lifecycle_material_demo/CesiumGodot.gdextension",
     ]
     required_library_keys = {
         "windows.debug.x86_64",

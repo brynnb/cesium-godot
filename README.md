@@ -62,7 +62,12 @@ python3 tools/build_extension.py --jobs 12
 
 The build is reproducible from `dependencies.lock.json`. Dependencies and
 generated files are kept in the ignored `build/` directory, while the packaged
-addon is written to `godot3dtiles/addons/cesium_godot/`.
+addon is written to `addons/cesium_godot/`.
+
+The repository keeps the distributable addon directly under `addons/` so its
+layout matches the destination in a Godot project. The `cesium_godot/`
+directory contains the C++ source; `addons/cesium_godot/` contains the files
+that are copied or packaged for users.
 
 See the [reproducible build guide](docs/REPRODUCIBLE_BUILDS.md) for supported
 platforms, dependency overrides, and cleanup.

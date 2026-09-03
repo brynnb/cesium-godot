@@ -1,0 +1,26 @@
+
+[configuration]
+
+entry_symbol = "cesium_godot_init"
+
+compatibility_minimum = "4.6.3"
+
+[libraries]
+windows.debug.x86_64 = "res://addons/cesium_godot/lib/CesiumGodot.windows.template_release.x86_64.dll"
+windows.release.x86_64 = "res://addons/cesium_godot/lib/CesiumGodot.windows.template_release.x86_64.dll"
+linux.debug.x86_64 = "res://addons/cesium_godot/lib/libCesiumGodot.linux.template_release.x86_64.so"
+linux.release.x86_64 = "res://addons/cesium_godot/lib/libCesiumGodot.linux.template_release.x86_64.so"
+macos.debug.arm64 = "res://addons/cesium_godot/lib/libCesiumGodot.macos.template_release.arm64.dylib"
+macos.release.arm64 = "res://addons/cesium_godot/lib/libCesiumGodot.macos.template_release.arm64.dylib"
+android.debug.arm64 = "res://addons/cesium_godot/lib/libCesiumGodot.android.template_release.arm64.so"
+android.release.arm64 = "res://addons/cesium_godot/lib/libCesiumGodot.android.template_release.arm64.so"
+android.debug.x86_64 = "res://addons/cesium_godot/lib/libCesiumGodot.android.template_release.x86_64.so"
+android.release.x86_64 = "res://addons/cesium_godot/lib/libCesiumGodot.android.template_release.x86_64.so"
+
+
+[icons]
+CesiumGeoreference = "res://addons/cesium_godot/resources/icons/globe.svg"
+Cesium3DTileset = "res://addons/cesium_godot/resources/icons/box.svg"
+CesiumIonRasterOverlay = "res://addons/cesium_godot/resources/icons/image.svg"
+CesiumDynamicCam = "res://addons/cesium_godot/resources/icons/video.svg"
+CesiumOrbitCam = "res://addons/cesium_godot/resources/icons/orbit.svg"

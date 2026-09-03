@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $fixtureSource = Join-Path $PSScriptRoot "godot-editor"
 $projectDir = Join-Path $repoRoot "build/editor-smoke-windows"
-$addonSource = Join-Path $repoRoot "godot3dtiles/addons/cesium_godot"
+$addonSource = Join-Path $repoRoot "addons/cesium_godot"
 $addonDestination = Join-Path $projectDir "addons/cesium_godot"
 $importDir = Join-Path $projectDir ".godot"
 $successMarker = "Cesium editor dock registration test passed"
@@ -28,7 +28,7 @@ Copy-Item -Recurse -Force $addonSource $addonDestination
 New-Item -ItemType Directory -Force $importDir | Out-Null
 [IO.File]::WriteAllText(
   (Join-Path $importDir "extension_list.cfg"),
-  "res://addons/cesium_godot/Godot3DTiles.gdextension`n"
+  "res://addons/cesium_godot/CesiumGodot.gdextension`n"
 )
 
 $output = & $GodotBin --headless --editor --path $projectDir --quit-after 1200 2>&1 |

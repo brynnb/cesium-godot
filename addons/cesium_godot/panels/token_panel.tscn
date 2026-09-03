@@ -82,7 +82,7 @@ icon_alignment = 1
 [node name="DescriptionLabel" type="Label" parent="Panel/VBoxContainer/MarginBox/VBoxContainer"]
 custom_minimum_size = Vector2(20, 10)
 layout_mode = 2
-text = "3D Tiles For Godot embeds a Cesium ion token in your project in order to allow it to access the assets you add to your levels. Select the Cesium ion token to use."
+text = "Cesium for Godot embeds a Cesium ion token in your project in order to allow it to access the assets you add to your levels. Select the Cesium ion token to use."
 label_settings = SubResource("LabelSettings_200ih")
 autowrap_mode = 2
 

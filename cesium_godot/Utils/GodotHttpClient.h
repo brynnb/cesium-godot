@@ -1,6 +1,8 @@
 #ifndef GODOT_HTTP_CLIENT_H
 #define GODOT_HTTP_CLIENT_H
 
+#include "Runtime/Public/CesiumGodotVersion.h"
+
 #if defined(CESIUM_GD_EXT)
 #include "godot_cpp/classes/ref.hpp"
 #include "godot_cpp/classes/os.hpp"
@@ -45,7 +47,8 @@ public:
 		std::string systemInfo = OS::get_singleton()->get_name().utf8().get_data();
 		CharString architecture = OS::get_singleton()->get_processor_name().utf8();
 		std::stringstream stream;
-		stream << "Godot3DTiles/1.0 (" << systemInfo << "; " << architecture.get_data() << ")";
+		stream << CesiumGodot::Identifier << "/" << CesiumGodot::Version << " ("
+			   << systemInfo << "; " << architecture.get_data() << ")";
 		add_default_header({"User-Agent", stream.str()});
 	}
 

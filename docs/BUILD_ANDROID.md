@@ -47,10 +47,10 @@ python3 tools/build_extension.py \
 ```
 
 The distributable addon is written to
-`godot3dtiles/addons/cesium_godot`. Its Android library is:
+`addons/cesium_godot`. Its Android library is:
 
 ```text
-lib/libGodot3DTiles.android.template_release.arm64.so
+lib/libCesiumGodot.android.template_release.arm64.so
 ```
 
 Copy the complete `cesium_godot` addon directory into the Android project's
@@ -103,11 +103,8 @@ driver behavior.
 
 ## Scope and current limitations
 
-The Android target uses the same Cesium Native streaming and rendering runtime
-as the desktop builds. The legacy litehtml-based `DocumentContainer` control
-is omitted because it is not used by the runtime credit system and its bundled
-libraries are desktop-only. Applications should display credits through
-`CesiumCreditSystem`, as on desktop.
+The Android target uses the same Cesium Native streaming, rendering, and
+Godot-native credit presentation runtime as the desktop builds.
 
 The network adapter obtains Android's system certificate authorities through
 Godot and writes the PEM bundle once to the app's private data directory for

@@ -16,9 +16,9 @@ CESIUM_GODOT_NATIVE_ROOT=/absolute/path/to/compatible/cesium-native \
 godot4 --path examples/lifecycle_material_demo
 ```
 
-The project-local `Godot3DTiles.gdextension` points at the repository build
+The project-local `CesiumGodot.gdextension` points at the repository build
 artifacts. A packaged copy of the example should instead copy the complete
-`godot3dtiles/addons/cesium_godot` directory into its own `addons` directory.
+`addons/cesium_godot` directory into its own `addons` directory.
 
 The left panel shows the exact callback order. Its controls:
 

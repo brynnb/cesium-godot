@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LOCK_PATH = ROOT / "dependencies/csharp-bindgen.lock.json"
 CHECKOUT = ROOT / "build/dependencies/sources/csharp-gdextension-bindgen"
 GENERATED = ROOT / "build/csharp-bindings-generated"
-OUTPUT = ROOT / "godot3dtiles/addons/cesium_godot/csharp"
+OUTPUT = ROOT / "addons/cesium_godot/csharp"
 TEST_PROJECT = ROOT / "tests/godot"
 
 
@@ -82,12 +82,12 @@ def provision_generator(lock: dict[str, Any]) -> None:
 
 
 def generate(lock: dict[str, Any], godot: str) -> list[Path]:
-    extension = ROOT / "godot3dtiles/addons/cesium_godot/Godot3DTiles.gdextension"
+    extension = ROOT / "addons/cesium_godot/CesiumGodot.gdextension"
     if not extension.is_file():
         raise GenerationError(f"packaged extension descriptor is missing: {extension}")
     library = ROOT / (
-        "godot3dtiles/addons/cesium_godot/lib/"
-        "libGodot3DTiles.linux.template_release.x86_64.so"
+        "addons/cesium_godot/lib/"
+        "libCesiumGodot.linux.template_release.x86_64.so"
     )
     if not library.is_file():
         raise GenerationError(

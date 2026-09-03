@@ -1,7 +1,7 @@
 # C# runtime API
 
 Cesium for Godot includes a generated C# facade under
-`godot3dtiles/addons/cesium_godot/csharp`. The streaming engine, renderer,
+`addons/cesium_godot/csharp`. The streaming engine, renderer,
 cache, and Cesium Native integration remain entirely in the existing C++
 GDExtension. The C# files are small forwarding wrappers over the same loaded
 Godot `ClassDB` API used by GDScript; they are not a second implementation and

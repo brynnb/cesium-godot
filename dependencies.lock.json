@@ -100,17 +100,6 @@
         "cesium_godot/third_party/mikktspace/mikktspace.c": "691b31b482ae0ae7eebbfe6351cd13b1c193f9284e2eba91976a59e92832cfc5",
         "cesium_godot/third_party/mikktspace/mikktspace.h": "510dd0c4787250b7d36e524df94ce41d8c2fe27346eba8405c8923ea93d413b0"
       }
-    },
-    "bundled_litehtml": {
-      "upstream_commit": "35ecd69d05e72b0148204a576db62c2148084193",
-      "files": {
-        "cesium_godot/third_party/litehtml/gumbo.lib": "f23e1e2fc515e5eae6b8fcc115d08fdd3fa47317c9029f170634cfd50c7d38a8",
-        "cesium_godot/third_party/litehtml/libgumbo.a": "ec6b2456655126b9b4d8b058da9dcfbacdf8be7a24effabe8aace8f4a59a73f6",
-        "cesium_godot/third_party/litehtml/liblitehtml.a": "23c1b22e174ce03d1f3b5a42b9b5274d0af60bd7c7d248148547e15d9a4e4815",
-        "cesium_godot/third_party/litehtml/litehtml.lib": "a9c1bd4acee8b659335ee612e1797be76a987481e34c070fe14e7e74a40c05f5",
-        "cesium_godot/third_party/litehtml/macos/libgumbo.a": "1972aa3bc36c2b91c381a8d95df6db4fe7aa511718d879cbfeccfa6d2ad6c601",
-        "cesium_godot/third_party/litehtml/macos/liblitehtml.a": "62a39d1ebd66b46c6c4877bd25f2a3a94c4d7ebe8c9c7f4d1ece039ca5a25c6a"
-      }
     }
   }
 }

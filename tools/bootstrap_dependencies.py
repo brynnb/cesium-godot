@@ -239,7 +239,7 @@ def _apply_native_patches(repository: Path, patches: Sequence[Path]) -> None:
     environment = os.environ.copy()
     environment.update(
         {
-            "GIT_COMMITTER_NAME": "3D Tiles for Godot dependency bootstrap",
+            "GIT_COMMITTER_NAME": "Cesium for Godot dependency bootstrap",
             "GIT_COMMITTER_EMAIL": "dependency-bootstrap@invalid.local",
         }
     )
@@ -294,7 +294,7 @@ def _verify_cesium_native(
 
 def _verify_bundled(root: Path, dependencies: dict[str, Any]) -> dict[str, int]:
     checked = 0
-    for dependency_name in ("mikktspace", "bundled_litehtml"):
+    for dependency_name in ("mikktspace",):
         for relative_path, expected in dependencies[dependency_name]["files"].items():
             _require_hash(root / relative_path, expected)
             checked += 1

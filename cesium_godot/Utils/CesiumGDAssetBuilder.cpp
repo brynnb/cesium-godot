@@ -7,16 +7,16 @@
 
 void CesiumGDAssetBuilder::instantiate_tileset(int32_t assetId, const String& assetType, const String& assetName) {
 	//Create a new Globe
-	Godot3DTiles::AssetManipulation::instantiate_tileset(this, assetId, assetType, assetName);
+	CesiumGodot::AssetManipulation::instantiate_tileset(this, assetId, assetType, assetName);
 }
 	
 
 void CesiumGDAssetBuilder::instantiate_dynamic_cam() {
-  Godot3DTiles::AssetManipulation::instantiate_dynamic_cam(this);
+  CesiumGodot::AssetManipulation::instantiate_dynamic_cam(this);
 }
 
 void CesiumGDAssetBuilder::instantiate_orbit_cam() {
-  Godot3DTiles::AssetManipulation::instantiate_orbit_cam(this);
+  CesiumGodot::AssetManipulation::instantiate_orbit_cam(this);
 }
 
 Variant CesiumGDAssetBuilder::get_georeference_camera_script() const {
@@ -28,11 +28,11 @@ void CesiumGDAssetBuilder::set_georeference_camera_script(Variant cameraScript) 
 }
 
 CesiumGeoreference* CesiumGDAssetBuilder::find_or_create_globe() {
-	return Godot3DTiles::AssetManipulation::find_or_create_globe(this);
+	return CesiumGodot::AssetManipulation::find_or_create_globe(this);
 }
 
 Array CesiumGDAssetBuilder::find_all_tilesets() {
-	return Godot3DTiles::AssetManipulation::find_all_tilesets(this);	
+	return CesiumGodot::AssetManipulation::find_all_tilesets(this);
 }
 
 void CesiumGDAssetBuilder::_bind_methods() {

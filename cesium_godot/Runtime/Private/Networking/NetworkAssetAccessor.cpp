@@ -2,6 +2,7 @@
 
 #include "Runtime/Private/CesiumTilesetRuntimeStatistics.h"
 #include "Runtime/Private/Diagnostics/CesiumLoadFailureQueue.h"
+#include "Runtime/Public/CesiumGodotVersion.h"
 
 #include <CesiumAsync/AsyncSystem.h>
 #include <CesiumAsync/IAssetRequest.h>
@@ -374,11 +375,12 @@ NetworkAssetAccessor::NetworkAssetAccessor(
 		->get_version_info()
 		.get("string", "unknown");
 	options.userAgent =
-		"3D Tiles For Godot/1.0 Godot/" +
+		std::string(CesiumGodot::Identifier) + "/" +
+		CesiumGodot::Version + " Godot/" +
 		std::string(godotVersion.utf8().get_data());
 	options.requestHeaders = {
-		{"x-cesium-client", "3D Tiles For Godot"},
-		{"x-cesium-client-version", "1.0"},
+		{"x-cesium-client", CesiumGodot::Name},
+		{"x-cesium-client-version", CesiumGodot::Version},
 		{"x-cesium-client-engine", godotVersion.utf8().get_data()}
 	};
 	// This decorator owns cancellation completion. Returning a request with no
