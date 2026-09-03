@@ -53,6 +53,11 @@ def _expected_output(
             f"libGodot3DTiles.macos.{target}{precision_suffix}."
             f"{architecture_suffix}.dylib"
         )
+    elif platform_name == "android":
+        pattern = (
+            f"libGodot3DTiles.android.{target}{precision_suffix}."
+            f"{architecture_suffix}.so"
+        )
     else:
         pattern = (
             f"libGodot3DTiles.linux.{target}{precision_suffix}."
@@ -65,7 +70,7 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
     default_platform, default_arch = _host_defaults()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--platform", choices=("linux", "windows", "macos"), default=default_platform
+        "--platform", choices=("linux", "windows", "macos", "android"), default=default_platform
     )
     parser.add_argument("--arch", default=default_arch)
     parser.add_argument(
@@ -96,18 +101,45 @@ def main(arguments: Sequence[str] | None = None) -> int:
     if args.jobs < 1:
         raise SystemExit("--jobs must be positive")
     host_name, _host_arch = _host_defaults()
-    if args.platform != host_name:
+    if args.platform != host_name and not (
+        args.platform == "android" and host_name == "linux"
+    ):
         raise SystemExit(
-            f"cross-compilation is not configured: host is {host_name}, target is {args.platform}"
+            f"cross-compilation is not configured: host is {host_name}, target is {args.platform}; "
+            "Android arm64 may be cross-compiled from Linux"
         )
-    supported_targets = {("linux", "x64"), ("windows", "x64"), ("macos", "arm64")}
+    supported_targets = {
+        ("linux", "x64"),
+        ("windows", "x64"),
+        ("macos", "arm64"),
+        ("android", "arm64"),
+    }
     if (args.platform, args.arch) not in supported_targets:
         raise SystemExit(
             f"unsupported extension target: {args.platform}/{args.arch}; "
-            "supported targets are Linux x64, Windows x64, and macOS arm64"
+            "supported targets are Linux x64, Windows x64, macOS arm64, and Android arm64"
         )
     environment = os.environ.copy()
     environment["CESIUM_GODOT_BUILD_JOBS"] = str(args.jobs)
+    lock = json.loads((ROOT / "dependencies.lock.json").read_text(encoding="utf-8"))
+    if args.platform == "android":
+        ndk_version = lock["toolchain"]["android_ndk"]
+        ndk_root = environment.get("ANDROID_NDK_ROOT", "").strip()
+        if not ndk_root:
+            sdk_root = (
+                environment.get("ANDROID_HOME", "").strip()
+                or environment.get("ANDROID_SDK_ROOT", "").strip()
+            )
+            if not sdk_root:
+                raise SystemExit(
+                    "Android builds require ANDROID_HOME or ANDROID_NDK_ROOT; "
+                    f"install NDK {ndk_version}"
+                )
+            ndk_root = str(Path(sdk_root).expanduser() / "ndk" / ndk_version)
+        if not (Path(ndk_root) / "build/cmake/android.toolchain.cmake").is_file():
+            raise SystemExit(f"locked Android NDK {ndk_version} is missing at {ndk_root}")
+        environment["ANDROID_NDK_ROOT"] = ndk_root
+        environment["ANDROID_NDK_HOME"] = ndk_root
 
     bootstrap = [
         sys.executable,
@@ -133,6 +165,13 @@ def main(arguments: Sequence[str] | None = None) -> int:
         f"target={args.target}",
         f"buildCesium={'no' if args.skip_native else 'yes'}",
     ]
+    if args.platform == "android":
+        command.extend(
+            (
+                f"ndk_version={lock['toolchain']['android_ndk']}",
+                "android_api_level=24",
+            )
+        )
     if args.debug_symbols:
         command.append("debug_symbols=yes")
     _run(command, environment)

@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-import os
-import sys
 import CesiumBuildUtils as cesium_build_utils
 
 LIB_NAME = "Godot3DTiles"
@@ -24,7 +22,7 @@ cesium_build_utils.clone_lite_html_if_needed()
 cesium_build_utils.compile_native(ARGUMENTS)
 
 # Build litehtml from source on macOS (no pre-built binaries available)
-if sys.platform == cesium_build_utils.PLATFORM_MACOS:
+if cesium_build_utils.get_target_platform(ARGUMENTS) == "macos":
     cesium_build_utils.build_litehtml()
 
 # godot-cpp validates its own command line and would otherwise report this
@@ -46,24 +44,24 @@ finally:
 # POSIX process argument limit when GNU ar is invoked directly. SCons' TEMPFILE
 # command generator writes the archive arguments to a response file only when
 # the expanded command needs it; GNU ar accepts that response-file syntax.
-if env["platform"] == "linux":
+if env["platform"] in ("linux", "android"):
     env["ARCOM_RESPONSE"] = env["ARCOM"]
     env["ARCOM"] = "${TEMPFILE(ARCOM_RESPONSE)}"
 
 cesium_build_utils.generate_precision_symbols(ARGUMENTS, env)
-env.Append(CXXFLAGS=cesium_build_utils.get_compile_flags())
-env.Append(LINKFLAGS=cesium_build_utils.get_linker_flags())
+env.Append(CXXFLAGS=cesium_build_utils.get_compile_flags(ARGUMENTS))
+env.Append(LINKFLAGS=cesium_build_utils.get_linker_flags(ARGUMENTS))
 
-cesium_build_utils.install_additional_libs()
+cesium_build_utils.install_additional_libs(ARGUMENTS)
 
 compilationTarget: str = cesium_build_utils.get_compile_target_definition(ARGUMENTS)
 
 env.Append(CPPDEFINES=[compilationTarget])
-if os.name == cesium_build_utils.OS_WIN:
+if env["platform"] == "windows":
     # Prevent Win32's wingdi.h OPAQUE macro from colliding with glTF's
     # Material::AlphaMode::OPAQUE without modifying generated Native headers.
     env.Append(CPPDEFINES=["NOGDI", "NOMINMAX", "WIN32_LEAN_AND_MEAN"])
-if (os.name == cesium_build_utils.OS_LINUX):
+if env["platform"] != "windows":
     env.Append(CPPDEFINES=["CURL_STATIC_LIB", "SQLITE_STATIC"])
 env.__class__.add_source_files = add_source_files
 

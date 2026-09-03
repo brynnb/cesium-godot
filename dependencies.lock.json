@@ -13,7 +13,8 @@
     "python": "3.11.9",
     "scons": "4.11.1",
     "cmake": "4.4.3",
-    "ninja": "1.13.0"
+    "ninja": "1.13.0",
+    "android_ndk": "28.1.13356709"
   },
   "dependencies": {
     "godot_cpp": {

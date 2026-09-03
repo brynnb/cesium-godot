@@ -82,6 +82,7 @@ class BuildConfigurationTests(unittest.TestCase):
             ("linux", "x64"): "libGodot3DTiles.linux.template_release.x86_64.so",
             ("windows", "x64"): "Godot3DTiles.windows.template_release.x86_64.dll",
             ("macos", "arm64"): "libGodot3DTiles.macos.template_release.arm64.dylib",
+            ("android", "arm64"): "libGodot3DTiles.android.template_release.arm64.so",
         }
         for target, filename in expected.items():
             self.assertEqual(BUILD_EXTENSION._expected_output(*target).name, filename)
@@ -120,8 +121,8 @@ class BuildConfigurationTests(unittest.TestCase):
     def test_windows_static_link_closure_matches_current_dependencies(self) -> None:
         build = (ROOT / "cesium_godot/SCsub").read_text(encoding="utf-8")
         windows = build[
-            build.index("if (os.name == cesium_build_utils.OS_WIN)") :
-            build.index("elif sys.platform == cesium_build_utils.PLATFORM_MACOS")
+            build.index('if target_platform == "windows":') :
+            build.index('elif target_platform == "macos":')
         ]
         for required in (
             '"absl_demangle_rust"',
@@ -136,6 +137,31 @@ class BuildConfigurationTests(unittest.TestCase):
         ):
             self.assertIn(required, windows)
         self.assertNotIn('"zlib",', windows)
+
+    def test_android_build_is_target_aware_and_excludes_desktop_html_archives(self) -> None:
+        build_utils = (ROOT / "CesiumBuildUtils.py").read_text(encoding="utf-8")
+        extension_build = (ROOT / "cesium_godot/SCsub").read_text(encoding="utf-8")
+        orchestrator = (ROOT / "SConstruct.py").read_text(encoding="utf-8")
+        wrapper = BUILD_SCRIPT.read_text(encoding="utf-8")
+        lock = json.loads((ROOT / "dependencies.lock.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(lock["toolchain"]["android_ndk"], "28.1.13356709")
+        self.assertIn('return "arm64-android"', build_utils)
+        self.assertIn("get_android_ndk_root()", build_utils)
+        self.assertIn('"-DANDROID_PLATFORM=android-24"', build_utils)
+        self.assertIn("get_compile_flags(ARGUMENTS)", orchestrator)
+        self.assertIn("install_additional_libs(ARGUMENTS)", orchestrator)
+        self.assertIn('env["platform"] in ("linux", "android")', orchestrator)
+        self.assertIn('target_platform == "android"', extension_build)
+        self.assertIn("CESIUM_GODOT_NO_LITEHTML", extension_build)
+        self.assertIn('(\"android\", \"arm64\")', wrapper)
+
+        network = (
+            ROOT
+            / "cesium_godot/Runtime/Private/Networking/NetworkAssetAccessor.cpp"
+        ).read_text(encoding="utf-8")
+        self.assertIn("get_system_ca_certificates()", network)
+        self.assertIn("options.certificateFile = getAndroidCertificateFile()", network)
 
     def test_only_the_locked_single_precision_godot_abi_is_buildable(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
@@ -214,9 +240,9 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertIn("runner.temp", workflow)
         self.assertIn("cg-vcpkg", workflow)
 
-    def test_linux_static_archive_uses_a_response_file_when_needed(self) -> None:
+    def test_posix_static_archives_use_a_response_file_when_needed(self) -> None:
         orchestrator = (ROOT / "SConstruct.py").read_text(encoding="utf-8")
-        self.assertIn('if env["platform"] == "linux":', orchestrator)
+        self.assertIn('if env["platform"] in ("linux", "android"):', orchestrator)
         self.assertIn('env["ARCOM_RESPONSE"] = env["ARCOM"]', orchestrator)
         self.assertIn('env["ARCOM"] = "${TEMPFILE(ARCOM_RESPONSE)}"', orchestrator)
 

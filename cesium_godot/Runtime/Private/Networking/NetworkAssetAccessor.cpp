@@ -22,6 +22,7 @@
 
 #if defined(CESIUM_GD_EXT)
 #include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/string.hpp>
 using namespace godot;
@@ -31,6 +32,42 @@ using namespace godot;
 
 namespace {
 using Clock = std::chrono::steady_clock;
+
+#if defined(CESIUM_GD_EXT) && defined(ANDROID_ENABLED)
+const std::string& getAndroidCertificateFile() {
+	// Android does not expose its system trust store as an OpenSSL-compatible
+	// directory. Godot obtains the trusted certificates through the platform
+	// API, so persist that PEM data once in this app's private directory and let
+	// CesiumCurl retain normal peer verification through CURLOPT_CAINFO.
+	static const std::string certificateFile = []() {
+		const String certificates =
+			OS::get_singleton()->get_system_ca_certificates();
+		if (certificates.is_empty()) {
+			return std::string{};
+		}
+
+		const String path = OS::get_singleton()
+			->get_user_data_dir()
+			.path_join("cesium-system-ca.pem");
+		const CharString nativePath = path.utf8();
+		std::ofstream output(
+			nativePath.get_data(),
+			std::ios::binary | std::ios::trunc
+		);
+		if (!output) {
+			return std::string{};
+		}
+		const CharString pem = certificates.utf8();
+		output.write(pem.get_data(), pem.length());
+		output.close();
+		if (!output) {
+			return std::string{};
+		}
+		return std::string(nativePath.get_data());
+	}();
+	return certificateFile;
+}
+#endif
 
 class EmptyAssetRequest final : public CesiumAsync::IAssetRequest {
 public:
@@ -351,6 +388,9 @@ NetworkAssetAccessor::NetworkAssetAccessor(
 	// Response-less status 0 is the accessor contract this decorator uses for
 	// classifying and retrying connection-level failures.
 	options.resolveErrorsAsNullResponse = true;
+#if defined(CESIUM_GD_EXT) && defined(ANDROID_ENABLED)
+	options.certificateFile = getAndroidCertificateFile();
+#endif
 	this->m_delegate =
 		std::make_shared<CesiumCurl::CurlAssetAccessor>(options);
 }

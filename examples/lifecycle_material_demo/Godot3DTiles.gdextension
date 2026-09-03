@@ -11,3 +11,5 @@ windows.debug.x86_64 = "res://../../godot3dtiles/addons/cesium_godot/lib/Godot3D
 windows.release.x86_64 = "res://../../godot3dtiles/addons/cesium_godot/lib/Godot3DTiles.windows.template_release.x86_64.dll"
 macos.debug.arm64 = "res://../../godot3dtiles/addons/cesium_godot/lib/libGodot3DTiles.macos.template_release.arm64.dylib"
 macos.release.arm64 = "res://../../godot3dtiles/addons/cesium_godot/lib/libGodot3DTiles.macos.template_release.arm64.dylib"
+android.debug.arm64 = "res://../../godot3dtiles/addons/cesium_godot/lib/libGodot3DTiles.android.template_release.arm64.so"
+android.release.arm64 = "res://../../godot3dtiles/addons/cesium_godot/lib/libGodot3DTiles.android.template_release.arm64.so"

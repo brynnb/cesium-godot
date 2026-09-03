@@ -55,6 +55,12 @@ jobs:
             arch: arm64
             precision: single
             artifact: godot3dtiles-macos-arm64
+          - name: Android arm64
+            os: ubuntu-24.04
+            platform: android
+            arch: arm64
+            precision: single
+            artifact: godot3dtiles-android-arm64
 
     steps:
       - name: Checkout repository
@@ -66,7 +72,7 @@ jobs:
           python-version: 3.11.9
 
       - name: Set up .NET 10 for LibGodot compatibility test
-        if: runner.os == 'Linux' || runner.os == 'Windows'
+        if: matrix.platform == 'linux' || runner.os == 'Windows'
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           dotnet-version: 10.0.x
@@ -88,6 +94,10 @@ jobs:
       - name: Install locked build tools
         run: python -m pip install scons==4.11.1 cmake==4.4.3 ninja==1.13.0
 
+      - name: Install locked Android NDK
+        if: matrix.platform == 'android'
+        run: yes | sdkmanager "ndk;28.1.13356709"
+
       - name: Configure short Windows dependency root
         if: runner.os == 'Windows'
         shell: pwsh
@@ -103,6 +113,7 @@ jobs:
         with:
           path: |
             build/dependencies/vcpkg
+            build/dependencies/vcpkg-installed
             build/dependencies/native-build
           key: vcpkg-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('dependencies.lock.json') }}
 
@@ -121,7 +132,7 @@ jobs:
 
       - name: Build locked extension
         env:
-          CESIUM_GODOT_NATIVE_TESTS: ${{ runner.os == 'Linux' && 'true' || 'false' }}
+          CESIUM_GODOT_NATIVE_TESTS: ${{ matrix.platform == 'linux' && 'true' || 'false' }}
         run: >-
           python tools/build_extension.py
           --platform ${{ matrix.platform }}
@@ -138,18 +149,18 @@ jobs:
         run: python tools/bootstrap_dependencies.py --verify-only --json
 
       - name: Run Cesium Native tests
-        if: runner.os == 'Linux'
+        if: matrix.platform == 'linux'
         run: ctest --test-dir build/dependencies/native-build/x64-linux-release --output-on-failure
 
       - name: Check Linux shared-library resolution
-        if: runner.os == 'Linux'
+        if: matrix.platform == 'linux'
         run: |
           resolution="$(ldd -r godot3dtiles/addons/cesium_godot/lib/libGodot3DTiles.linux.template_release.x86_64.so 2>&1)"
           printf '%s\n' "$resolution"
           ! grep -q 'undefined symbol:' <<< "$resolution"
 
       - name: Download supported Godot test engines
-        if: runner.os == 'Linux'
+        if: matrix.platform == 'linux'
         run: |
           mkdir -p build/test-engines/godot-4.6.3
           curl --fail --location --retry 3 --output build/test-engines/godot-4.6.3.zip https://github.com/godotengine/godot/releases/download/4.6.3-stable/Godot_v4.6.3-stable_linux.x86_64.zip
@@ -159,32 +170,40 @@ jobs:
           unzip -q build/test-engines/godot-4.7.2.zip -d build/test-engines/godot-4.7.2
 
       - name: Test Cesium for Godot on Godot 4.6.3
-        if: runner.os == 'Linux'
+        if: matrix.platform == 'linux'
         env:
           GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.6.3/Godot_v4.6.3-stable_linux.x86_64
         run: tests/run_godot_tests.sh
 
       - name: Test editor dock on Godot 4.6.3
-        if: runner.os == 'Linux'
+        if: matrix.platform == 'linux'
         env:
           GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.6.3/Godot_v4.6.3-stable_linux.x86_64
         run: tests/run_editor_tests.sh
 
       - name: Test Cesium for Godot on Godot 4.7.2
-        if: runner.os == 'Linux'
+        if: matrix.platform == 'linux'
         env:
           GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.7.2/Godot_v4.7.2-stable_linux.x86_64
         run: tests/run_godot_tests.sh
 
       - name: Test editor dock on Godot 4.7.2
-        if: runner.os == 'Linux'
+        if: matrix.platform == 'linux'
         env:
           GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.7.2/Godot_v4.7.2-stable_linux.x86_64
         run: tests/run_editor_tests.sh
 
       - name: Test C# facade and streaming through LibGodot
-        if: runner.os == 'Linux'
+        if: matrix.platform == 'linux'
         run: tests/run_2dog_tests.sh
+
+      - name: Verify Android ARM64 shared library
+        if: matrix.platform == 'android'
+        run: |
+          library=godot3dtiles/addons/cesium_godot/lib/libGodot3DTiles.android.template_release.arm64.so
+          readelf -h "$library" | tee build/android-elf-header.txt
+          grep -q 'Machine:.*AArch64' build/android-elf-header.txt
+          readelf -d "$library" | tee build/android-dynamic-section.txt
 
       - name: Download supported Godot test engines for Windows
         if: runner.os == 'Windows'

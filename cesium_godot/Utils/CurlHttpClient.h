@@ -115,9 +115,9 @@ public:
 	void init_client(size_t maxThreads) {
 		this->m_threadPool.init(maxThreads);
 		std::string systemInfo = OS::get_singleton()->get_name().utf8().get_data();
-		auto architecture = OS::get_singleton()->get_processor_name().utf8().get_data();
+		CharString architecture = OS::get_singleton()->get_processor_name().utf8();
 		std::stringstream stream;
-		stream << "Godot3DTiles/1.0 (" << systemInfo << "; " << architecture << ")";	
+		stream << "Godot3DTiles/1.0 (" << systemInfo << "; " << architecture.get_data() << ")";
 		this->add_default_header({"User-Agent", stream.str()});
 	}
 

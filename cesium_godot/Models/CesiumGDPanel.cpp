@@ -1,14 +1,19 @@
 #include "CesiumGDPanel.h"
-#include "../Utils/NetworkUtils.h"
+
+#if defined(CESIUM_GD_EXT)
+#include "godot_cpp/classes/os.hpp"
+#elif defined(CESIUM_GD_MODULE)
+#include "core/os/os.h"
+#endif
 
 void CesiumGDPanel::open_learn_page()
 {
-	NetworkUtils::SystemOpenURL("https://cesium.com/learn/");
+	OS::get_singleton()->shell_open("https://cesium.com/learn/");
 }
 
 void CesiumGDPanel::open_help_page()
 {
-	NetworkUtils::SystemOpenURL("https://community.cesium.com/");
+	OS::get_singleton()->shell_open("https://community.cesium.com/");
 }
 
 void CesiumGDPanel::_bind_methods()

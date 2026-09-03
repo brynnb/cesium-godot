@@ -1,11 +1,11 @@
 ﻿# SCub for building the Godot Cesium submodule
 import CesiumBuildUtils as cesium_build_utils
-import os
-import sys
 
 Import("env")
 
 cesium_env = env.Clone()
+target_platform = env["platform"]
+target_arguments = {"platform": target_platform, "arch": env["arch"]}
 
 
 def load_cesium_module(p_includePaths: list[str], moduleName: str, loadSources=False, rootDir=""):
@@ -18,7 +18,7 @@ def load_cesium_module(p_includePaths: list[str], moduleName: str, loadSources=F
 
 
 env.Append(CPPDEFINES=[("_HAS_EXCEPTIONS", 1)])
-if os.name == cesium_build_utils.OS_WIN:
+if target_platform == "windows":
     env.Append(CXXFLAGS=["/EHsc"])
 env.Append(CPPDEFINES=["SPDLOG_NO_EXCEPTIONS",
                        "LIBASYNC_NO_EXCEPTIONS"])
@@ -112,6 +112,15 @@ sources = [
     cesium_build_utils.get_root_dir() + "/third_party/mikktspace/mikktspace.c"
 ]
 
+# DocumentContainer is an unused legacy editor HTML control. Its checked-in
+# litehtml archives are desktop binaries, while the runtime credit system does
+# not depend on it. Keep Android's distributed runtime free of host archives.
+if target_platform == "android":
+    sources.remove(
+        cesium_build_utils.get_root_dir() + "/Implementations/DocumentContainer.cpp"
+    )
+    env.Append(CPPDEFINES=["CESIUM_GODOT_NO_LITEHTML"])
+
 
 load_cesium_module(includePaths, "Cesium3DTiles")
 load_cesium_module(includePaths, "Cesium3DTilesContent")
@@ -160,16 +169,16 @@ if (cesium_build_utils.is_extension_target(ARGUMENTS)):
 else:
     cesium_env.add_source_files(cesium_env.modules_sources, sources)
 
-vcpkgIncludePath = cesium_build_utils.find_ezvcpkg_include_path()
+vcpkgIncludePath = cesium_build_utils.find_ezvcpkg_include_path(target_arguments)
 includePaths.append(vcpkgIncludePath)
 
 env.Append(CPPPATH=includePaths)
 
-vcpkgLibPath = cesium_build_utils.find_ezvcpkg_lib_path()
+vcpkgLibPath = cesium_build_utils.find_ezvcpkg_lib_path(target_arguments)
 env.Prepend(LIBPATH=vcpkgLibPath)
 
-root_dir_native = cesium_build_utils.get_native_build_root()
-current_build_config = cesium_build_utils.get_native_library_config_subdir()
+root_dir_native = cesium_build_utils.get_native_build_root(target_arguments)
+current_build_config = cesium_build_utils.get_native_library_config_subdir(target_arguments)
 # Library paths and linking
 libraries = [
     "CesiumVectorOverlays",
@@ -209,7 +218,7 @@ libraries = [
     "fmt",
     "spdlog",
     "tinyxml2",
-    cesium_build_utils.get_curl_lib_name(),
+    cesium_build_utils.get_curl_lib_name(target_arguments),
     "sqlite3",
     # Needed only for GDExtension as it appears godot already links this
     "libwebp",
@@ -224,11 +233,15 @@ libraries = [
     "brotlidec",
     "brotlicommon",
     "ada",
-    "litehtml", # 35ecd69d05e72b0148204a576db62c2148084193
-    "gumbo"
 ]
 
-if (os.name == cesium_build_utils.OS_WIN):
+if target_platform != "android":
+    libraries.extend([
+        "litehtml", # 35ecd69d05e72b0148204a576db62c2148084193
+        "gumbo",
+    ])
+
+if target_platform == "windows":
     libraries.extend([
         # Static OpenSSL and libcurl do not carry these Windows dependencies
         # transitively when the GDExtension is linked with MSVC.
@@ -326,7 +339,7 @@ if (os.name == cesium_build_utils.OS_WIN):
         "zlibstatic-ng",
         "libmodpbase64"
     ])
-elif sys.platform == cesium_build_utils.PLATFORM_MACOS:
+elif target_platform == "macos":
     # Remove litehtml and gumbo from the libraries list - we'll use -force_load instead
     libraries.remove("litehtml")
     libraries.remove("gumbo")
@@ -439,7 +452,17 @@ elif sys.platform == cesium_build_utils.PLATFORM_MACOS:
         "-force_load", litehtml_macos_abs + "/liblitehtml.a",
         "-force_load", litehtml_macos_abs + "/libgumbo.a"
     ])
-elif (os.name == cesium_build_utils.OS_LINUX and sys.platform != cesium_build_utils.PLATFORM_MACOS):
+elif target_platform == "android":
+    libraries.extend([
+        "crypto",
+        "ssl",
+        "z",
+        "z-ng",
+        "liblibmodpbase64",
+        "log",
+        "android",
+    ])
+elif target_platform == "linux":
     libraries.extend([
         "crypto",
         "libz-ng",
@@ -475,11 +498,11 @@ common_libpaths = [
     f"{root_dir_native}/CesiumGltfContent/{current_build_config}",
     f"{root_dir_native}/CesiumQuantizedMeshTerrain/{current_build_config}",
     f"{root_dir_native}/Cesium3DTilesContent/{current_build_config}",
-    cesium_build_utils.find_ezvcpkg_lib_path()
+    cesium_build_utils.find_ezvcpkg_lib_path(target_arguments)
 ]
 
 # Add litehtml path (macOS uses its own path added earlier, others use base path)
-if sys.platform != cesium_build_utils.PLATFORM_MACOS:
+if target_platform not in ("macos", "android"):
     common_libpaths.append(cesium_build_utils.get_root_dir() + "/third_party/litehtml")
 
 env.Append(
@@ -487,7 +510,6 @@ env.Append(
     LIBPATH=common_libpaths
 )
 
-# This was a nightmare, so I abstracted it into a function, the function itself is also a nightmare
-# Note: os.name == 'posix' on both Linux and macOS, so we must check PLATFORM_MACOS first
-if (os.name == cesium_build_utils.OS_LINUX and sys.platform != cesium_build_utils.PLATFORM_MACOS):
-    cesium_build_utils.link_abseil_libs(env)
+# This was a nightmare, so I abstracted it into a function, the function itself is also a nightmare.
+if target_platform in ("linux", "android"):
+    cesium_build_utils.link_abseil_libs(env, target_arguments)

@@ -1,11 +1,12 @@
 # Cesium for Godot
 
-Cesium for Godot is an alpha-stage unofficial Godot 4 GDExtension for streaming,
+Cesium for Godot is an unofficial, pre-1.0 Godot 4 GDExtension for streaming,
 rendering, and interacting with [3D Tiles](https://www.ogc.org/standard/3dtiles/).
 It is built on [Cesium Native](https://github.com/CesiumGS/cesium-native) and is
-focused on a capable, reusable runtime integration for Godot. It has been
-exercised extensively in one large Linux project, but remains alpha software;
-broader project, platform, and content coverage is still needed.
+primarily a reusable runtime integration. Runtime support is substantial and
+has been exercised extensively in one large Linux project. Editor integration
+is still limited and experimental, and broader project, platform, and content
+coverage is ongoing.
 
 This project builds on
 [3D Tiles for Godot](https://github.com/Battle-Road-Labs/3D-Tiles-For-Godot)
@@ -39,9 +40,11 @@ Cesium GS or Godot Engine product and is not endorsed by either organization.
 The integration currently targets Cesium Native 0.63.0 and supports Godot
 4.6.3 through 4.7.2. Release binaries retain a Godot 4.6.3 compatibility floor,
 and the runtime and editor plugin are tested against both ends of that range.
-Linux x86_64 is the primary tested platform; Windows x86_64 and macOS arm64 are
-part of the build matrix. Runtime support is substantially further along than
-the editor workflow, which should be considered experimental.
+Linux x86_64 is the primary tested platform; Windows x86_64, macOS arm64, and
+Android arm64 are part of the build matrix. Android support is new and should
+be considered experimental until it has broader device coverage. Runtime
+support is substantially further along than the editor workflow, which should
+also be considered experimental.
 
 ## Building
 
@@ -61,6 +64,9 @@ addon is written to `godot3dtiles/addons/cesium_godot/`.
 
 See the [reproducible build guide](docs/REPRODUCIBLE_BUILDS.md) for supported
 platforms, dependency overrides, and cleanup.
+
+Android arm64 builds use the locked Android NDK and are documented in the
+[Android build guide](docs/BUILD_ANDROID.md).
 
 Windows contributors can generate an optional Visual Studio 2026 solution
 whose Build, Rebuild, and Clean commands delegate to this same locked build:

@@ -34,9 +34,11 @@ python3 tools/build_extension.py --skip-native --jobs 12
 
 ```
 
-The supported build hosts/targets are Linux x86_64, Windows x86_64, and macOS
-arm64. The wrapper rejects accidental cross-target combinations because the
-Native triplet, bundled archives, and host compiler would otherwise disagree.
+The supported build hosts/targets are Linux x86_64, Windows x86_64, macOS
+arm64, and Android arm64 cross-compiled from Linux. The wrapper rejects other
+cross-target combinations because the Native triplet, bundled archives, and
+host compiler would otherwise disagree. See
+[`BUILD_ANDROID.md`](BUILD_ANDROID.md) for Android SDK/NDK setup.
 
 ## What is locked
 
@@ -49,7 +51,7 @@ Native triplet, bundled archives, and host compiler would otherwise disagree.
 - the vcpkg baseline;
 - the MikkTSpace source hashes and upstream commit;
 - every bundled litehtml/gumbo archive hash; and
-- the CI Python, SCons, CMake, and Ninja versions.
+- the CI Python, SCons, CMake, Ninja, and Android NDK versions.
 
 `tools/bootstrap_dependencies.py` refuses an unexpected origin, commit/tree,
 tracked modification, missing submodule, or changed vendored hash. It never
@@ -68,6 +70,7 @@ build/
     sources/godot-cpp/
     sources/cesium-native/
     native-build/<triplet>-release/
+    vcpkg-installed/arm64-android/
     vcpkg/<locked-baseline>/
   test-engines/
 ```
@@ -106,7 +109,9 @@ The normal test runner invokes it before runtime tests.
 
 `.github/workflows/build-matrix.yml` uses immutable action SHAs and fixed
 Ubuntu 24.04, Windows 2022, and macOS 15 arm64 runner labels. It builds Linux,
-Windows, and macOS arm64 single-precision artifacts. Linux additionally runs
+Windows, macOS arm64, and Android arm64 single-precision artifacts. Android is
+cross-compiled on Ubuntu with the locked NDK and its output is checked as an
+AArch64 shared library. Linux additionally runs
 Cesium Native tests, resolves the final shared library, and runs the full Godot
 suite and an editor-plugin dock registration smoke test on official Godot 4.6.3
 and 4.7.2. The editor test verifies that the packaged plugin actually attaches
