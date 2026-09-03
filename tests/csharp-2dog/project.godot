@@ -1,0 +1,12 @@
+[application]
+
+config/name="Cesium for Godot 2dog Compatibility Test"
+run/main_scene="res://main.tscn"
+
+[dotnet]
+
+project/assembly_name="CesiumCSharpTwoDog"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"

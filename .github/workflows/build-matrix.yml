@@ -65,6 +65,12 @@ jobs:
         with:
           python-version: 3.11.9
 
+      - name: Set up .NET 10 for LibGodot compatibility test
+        if: runner.os == 'Linux'
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+
       - name: Set up MSVC 2022
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
@@ -148,6 +154,9 @@ jobs:
           mkdir -p build/test-engines/godot-4.6.3
           curl --fail --location --retry 3 --output build/test-engines/godot-4.6.3.zip https://github.com/godotengine/godot/releases/download/4.6.3-stable/Godot_v4.6.3-stable_linux.x86_64.zip
           unzip -q build/test-engines/godot-4.6.3.zip -d build/test-engines/godot-4.6.3
+          mkdir -p build/test-engines/godot-4.7.2
+          curl --fail --location --retry 3 --output build/test-engines/godot-4.7.2.zip https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          unzip -q build/test-engines/godot-4.7.2.zip -d build/test-engines/godot-4.7.2
 
       - name: Test Cesium for Godot on Godot 4.6.3
         if: runner.os == 'Linux'
@@ -155,17 +164,41 @@ jobs:
           GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.6.3/Godot_v4.6.3-stable_linux.x86_64
         run: tests/run_godot_tests.sh
 
-      - name: Download Godot 4.6.3 for Windows runtime smoke test
+      - name: Test editor dock on Godot 4.6.3
+        if: runner.os == 'Linux'
+        env:
+          GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.6.3/Godot_v4.6.3-stable_linux.x86_64
+        run: tests/run_editor_tests.sh
+
+      - name: Test Cesium for Godot on Godot 4.7.2
+        if: runner.os == 'Linux'
+        env:
+          GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.7.2/Godot_v4.7.2-stable_linux.x86_64
+        run: tests/run_godot_tests.sh
+
+      - name: Test editor dock on Godot 4.7.2
+        if: runner.os == 'Linux'
+        env:
+          GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.7.2/Godot_v4.7.2-stable_linux.x86_64
+        run: tests/run_editor_tests.sh
+
+      - name: Test C# facade and streaming through LibGodot
+        if: runner.os == 'Linux'
+        run: tests/run_2dog_tests.sh
+
+      - name: Download supported Godot test engines for Windows
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $archive = "build/test-engines/godot-4.6.3-windows.zip"
-          $destination = "build/test-engines/godot-4.6.3-windows"
-          New-Item -ItemType Directory -Force -Path $destination | Out-Null
-          Invoke-WebRequest `
-            -Uri "https://github.com/godotengine/godot/releases/download/4.6.3-stable/Godot_v4.6.3-stable_win64.exe.zip" `
-            -OutFile $archive
-          Expand-Archive -Path $archive -DestinationPath $destination
+          foreach ($version in @("4.6.3", "4.7.2")) {
+            $archive = "build/test-engines/godot-$version-windows.zip"
+            $destination = "build/test-engines/godot-$version-windows"
+            New-Item -ItemType Directory -Force -Path $destination | Out-Null
+            Invoke-WebRequest `
+              -Uri "https://github.com/godotengine/godot/releases/download/$version-stable/Godot_v$version-stable_win64.exe.zip" `
+              -OutFile $archive
+            Expand-Archive -Path $archive -DestinationPath $destination
+          }
 
       - name: Test packaged addon on Godot 4.6.3 for Windows
         if: runner.os == 'Windows'
@@ -175,6 +208,15 @@ jobs:
           & $godot --headless --path examples/lifecycle_material_demo -- --smoke-test
           if ($LASTEXITCODE -ne 0) {
             throw "Windows lifecycle/material smoke test failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Test editor dock on supported Godot versions for Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($version in @("4.6.3", "4.7.2")) {
+            $godot = Resolve-Path "build/test-engines/godot-$version-windows/Godot_v$version-stable_win64_console.exe"
+            ./tests/run_editor_tests.ps1 -GodotBin $godot
           }
 
       - name: Upload distributable addon

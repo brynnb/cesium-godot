@@ -6,8 +6,8 @@ cache from them. Automatic sizing is disabled by default. Existing projects
 therefore retain Cesium Native's default or their authored
 `maximum_cached_bytes` value without a behavior change.
 
-This integration targets Cesium Native v0.63.0. Godot 4.6.3 is both the
-minimum supported and tested engine version.
+This integration targets Cesium Native v0.63.0. Godot 4.6.3 is the minimum
+supported runtime, and the same binary is tested through Godot 4.7.2.
 
 ## Capability snapshot
 

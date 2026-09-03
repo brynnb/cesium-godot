@@ -54,6 +54,16 @@ tests/csharp/.godot/
 tests/csharp/.test-user-data/
 tests/csharp/**/*.uid
 tests/csharp/**/*.import
+tests/csharp-2dog/.godot/
+tests/csharp-2dog/.test-user-data/
+tests/csharp-2dog/**/*.uid
+tests/csharp-2dog/**/*.import
+tests/csharp-2dog/**/bin/
+tests/csharp-2dog/**/obj/
+tests/godot-editor/.godot/
+tests/godot-editor/.test-user-data/
+tests/godot-editor/**/*.uid
+tests/godot-editor/**/*.import
 
 # Example projects generate the same ordinary Godot import/user-data folders.
 examples/**/.godot/

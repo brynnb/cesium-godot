@@ -7,7 +7,8 @@ GDExtension. The C# files are small forwarding wrappers over the same loaded
 Godot `ClassDB` API used by GDScript; they are not a second implementation and
 do not bind Cesium Native directly.
 
-Use the Godot 4.6.3 .NET editor/runtime for C# projects. Copy the complete
+Godot 4.6.3 through 4.7.2 is the tested runtime range. The canonical C# fixture
+uses the Godot 4.6.3 .NET editor/runtime and .NET 8. Copy the complete
 `addons/cesium_godot` directory into the project as usual. No generator is
 required in an addon user's project.
 
@@ -138,3 +139,30 @@ The streaming portion is implemented in
 `tests/godot/fixtures/lifecycle`, so the GDScript and C# boundaries are checked
 against the same real 3D Tiles content. The missing-source case deliberately
 prints a 404 error before the final success marker.
+
+### Optional LibGodot / 2dog compatibility lane
+
+The separate `tests/csharp-2dog` fixture embeds Godot through
+[`2dog`](https://github.com/outfox/2dog) and runs the same facade and streaming
+contracts under xUnit. It is intentionally a compatibility lane, not the
+supported runtime baseline: the addon remains targeted and directly tested on
+Godot 4.6.3 with .NET 8, while the pinned 2dog packages use Godot 4.7.2 with
+.NET 10. This 2dog/xUnit lane currently runs on Linux only.
+
+Run it after building the Linux extension:
+
+```bash
+DOTNET10_BIN=/path/to/dotnet tests/run_2dog_tests.sh
+```
+
+The package versions and restore graphs are locked in the fixture. The test
+runner creates only ignored Godot import state and ordinary .NET build output;
+2dog itself is obtained from NuGet.
+
+An embedded Godot instance does not process frames in the background. A test
+that simply awaits `SceneTree.ProcessFrame` will therefore hang. The streaming
+test remains synchronous on the thread that created LibGodot and explicitly
+calls `GodotInstance.Iteration()` until the shared asynchronous contract
+finishes. Do not add xUnit's per-test `Timeout` property to this test: xUnit may
+move it to a worker thread, while Godot scene-tree mutations must remain on the
+engine thread. The shell/CI job supplies the outer process timeout.

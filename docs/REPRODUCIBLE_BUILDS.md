@@ -1,9 +1,11 @@
 # Reproducible builds and compatibility
 
-Godot 4.6.3 is both the minimum supported and tested GDExtension runtime.
-Release builds compile against the locked Godot 4.6 `godot-cpp` API (bindings
-version 4.6.0) and use typed APIs introduced by Godot 4.6, so older Godot 4.x
-runtimes are not supported. This follows Godot's documented
+Godot 4.6.3 is the minimum supported GDExtension runtime. The same release
+binary is tested on official Godot 4.6.3 and 4.7.2, which is the currently
+advertised compatibility range. Release builds compile against the locked
+Godot 4.6 `godot-cpp` API (bindings version 4.6.0) and use typed APIs introduced
+by Godot 4.6, so older Godot 4.x runtimes are not supported. This follows
+Godot's documented
 [GDExtension compatibility rules](https://docs.godotengine.org/en/stable/tutorials/scripting/gdextension/gdextension_compatibility.html).
 
 The locked native streaming implementation is Cesium Native v0.63.0 plus the
@@ -106,9 +108,13 @@ The normal test runner invokes it before runtime tests.
 Ubuntu 24.04, Windows 2022, and macOS 15 arm64 runner labels. It builds Linux,
 Windows, and macOS arm64 single-precision artifacts. Linux additionally runs
 Cesium Native tests, resolves the final shared library, and runs the full Godot
-suite on the documented Godot 4.6.3 runtime. Windows downloads the same Godot
-version and runs the credential-free lifecycle/material demo against the
-newly-built distributable addon, including local-file streaming and unload.
+suite and an editor-plugin dock registration smoke test on official Godot 4.6.3
+and 4.7.2. The editor test verifies that the packaged plugin actually attaches
+the Cesium dock and its primary controls, rather than merely parsing its
+scripts. Windows downloads Godot 4.6.3 and runs the credential-free
+lifecycle/material demo against the newly-built distributable addon, including
+local-file streaming and unload. The LibGodot/2dog xUnit compatibility fixture
+currently runs on Linux only.
 Double-precision builds remain a supported explicit build configuration, but
 are not currently part of the hosted matrix.
 

@@ -1,7 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://bg13hhs46nnn"]
-
-[ext_resource type="Texture2D" uid="uid://c61otilqm83bc" path="res://addons/cesium_godot/resources/icons/zap.svg" id="1_8k3s0"]
-[ext_resource type="Texture2D" uid="uid://88d5nak40tib" path="res://addons/cesium_godot/resources/icons/x.svg" id="1_g1lxp"]
+[gd_scene load_steps=5 format=3 uid="uid://bg13hhs46nnn"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_g1lxp"]
 bg_color = Color(0.29219002, 0.29219005, 0.29218993, 1)
@@ -79,7 +76,6 @@ vertical_alignment = 1
 
 [node name="CloseButton" type="Button" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/TitleBar"]
 layout_mode = 2
-icon = ExtResource("1_g1lxp")
 flat = true
 icon_alignment = 1
 
@@ -185,9 +181,8 @@ theme_override_constants/separation = 12
 [node name="HBoxContainer" type="HBoxContainer" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/VBoxContainer"]
 layout_mode = 2
 
-[node name="TextureRect" type="TextureRect" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/VBoxContainer/HBoxContainer"]
+[node name="ActionIcon" type="TextureRect" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/VBoxContainer/HBoxContainer"]
 layout_mode = 2
-texture = ExtResource("1_8k3s0")
 stretch_mode = 5
 
 [node name="Label" type="Label" parent="Panel/VBoxContainer/MarginBox/VBoxContainer/VBoxContainer/HBoxContainer"]

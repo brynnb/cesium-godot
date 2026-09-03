@@ -33,7 +33,7 @@ class DependencyLockTests(unittest.TestCase):
         self.assertEqual(compatibility["minimum"], "4.6.3")
         self.assertEqual(compatibility["api_version"], "4.6")
         self.assertEqual(compatibility["bindings_version"], "4.6.0")
-        self.assertEqual(compatibility["tested_versions"], ["4.6.3"])
+        self.assertEqual(compatibility["tested_versions"], ["4.6.3", "4.7.2"])
 
     def test_all_vendored_files_match_their_hashes(self) -> None:
         dependencies = self.lock["dependencies"]

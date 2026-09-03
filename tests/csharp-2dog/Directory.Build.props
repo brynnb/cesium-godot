@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup Label="2dog">
+    <!-- Keep this compatibility lane reproducible and independent from the
+         supported Godot 4.6.3 / .NET 8 runtime lane. -->
+    <TwoDogVersion>4.7.2.80</TwoDogVersion>
+    <TwoDogNativesVersion>4.7.2.3</TwoDogNativesVersion>
+    <TwoDogGodotVersion>4.7.2</TwoDogGodotVersion>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,17 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>$(DefineConstants);LIBGODOT_ENABLED</DefineConstants>
+    <Nullable>disable</Nullable>
+    <DefaultItemExcludes>$(DefaultItemExcludes);CesiumCSharpTwoDog.Tests/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <!-- Reuse the exact facade and streaming contracts exercised by the
+       supported Godot executable test instead of maintaining weaker copies. -->
+  <ItemGroup>
+    <Compile Include="../csharp/CSharpFacadeTests.cs" Link="CSharpFacadeTests.cs" />
+    <Compile Include="../csharp/CSharpStreamingIntegrationTests.cs" Link="CSharpStreamingIntegrationTests.cs" />
+  </ItemGroup>
+</Project>

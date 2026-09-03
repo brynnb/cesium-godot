@@ -48,6 +48,35 @@ class BuildConfigurationTests(unittest.TestCase):
             "res://Godot3DTiles.gdextension\n",
         )
 
+    def test_editor_fixture_enables_the_packaged_plugin(self) -> None:
+        fixture = ROOT / "tests/godot-editor"
+        self.assertTrue((fixture / "addons/cesium_godot").is_symlink())
+        self.assertEqual(
+            (fixture / "addons/cesium_godot").resolve(),
+            (ROOT / "godot3dtiles/addons/cesium_godot").resolve(),
+        )
+        project = (fixture / "project.godot").read_text(encoding="utf-8")
+        self.assertIn('"res://addons/cesium_godot/plugin.cfg"', project)
+        self.assertIn(
+            '"res://addons/editor_smoke_probe/plugin.cfg"', project
+        )
+        smoke_test = (
+            fixture / "addons/editor_smoke_probe/editor_smoke_probe.gd"
+        ).read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('find_child("Cesium Ion Panel", true, false)', smoke_test)
+
+    def test_editor_panels_do_not_require_imported_icons_to_register(self) -> None:
+        addon = ROOT / "godot3dtiles/addons/cesium_godot"
+        for relative_path in (
+            "cesium_godot.gd",
+            "panels/cesium_panel.tscn",
+            "panels/token_panel.tscn",
+        ):
+            source = (addon / relative_path).read_text(encoding="utf-8")
+            self.assertNotIn(".svg", source, relative_path)
+
     def test_expected_artifact_names_match_gdextension_manifest(self) -> None:
         expected = {
             ("linux", "x64"): "libGodot3DTiles.linux.template_release.x86_64.so",
@@ -72,8 +101,13 @@ class BuildConfigurationTests(unittest.TestCase):
             "windows-2022",
             "macos-15",
             "Godot_v4.6.3-stable_linux.x86_64.zip",
-            "Godot_v4.6.3-stable_win64.exe.zip",
+            "Godot_v4.7.2-stable_linux.x86_64.zip",
+            "Godot_v$version-stable_win64.exe.zip",
             "Test packaged addon on Godot 4.6.3 for Windows",
+            "Test Cesium for Godot on Godot 4.7.2",
+            "Test editor dock on Godot 4.7.2",
+            "tests/run_editor_tests.sh",
+            "tests/run_editor_tests.ps1",
             "--smoke-test",
             "tools/bootstrap_dependencies.py --verify-only",
             "undefined symbol:",

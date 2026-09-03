@@ -1,0 +1,15 @@
+; Minimal project that verifies the distributable editor plugin itself.
+config_version=5
+
+[application]
+
+config/name="Cesium for Godot Editor Smoke Test"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/cesium_godot/plugin.cfg", "res://addons/editor_smoke_probe/plugin.cfg")
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

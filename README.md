@@ -36,10 +36,12 @@ Cesium GS or Godot Engine product and is not endorsed by either organization.
   through real local-tile streaming on the Godot 4.6.3 .NET runtime. GDScript
   remains supported directly through the same underlying GDExtension API.
 
-The integration currently targets Cesium Native 0.63.0 and Godot 4.6.3. Linux
-x86_64 is the primary tested platform; Windows x86_64 and macOS arm64 are part
-of the build matrix. Runtime support is substantially further along than the
-editor workflow, which should be considered experimental.
+The integration currently targets Cesium Native 0.63.0 and supports Godot
+4.6.3 through 4.7.2. Release binaries retain a Godot 4.6.3 compatibility floor,
+and the runtime and editor plugin are tested against both ends of that range.
+Linux x86_64 is the primary tested platform; Windows x86_64 and macOS arm64 are
+part of the build matrix. Runtime support is substantially further along than
+the editor workflow, which should be considered experimental.
 
 ## Building
 
@@ -127,12 +129,38 @@ tests/run_godot_tests.sh
 ```
 
 The test suite uses local fixtures and does not require Cesium ion credentials.
+CI runs it with the same extension binary on official Godot 4.6.3 and 4.7.2.
+The separate editor smoke test enables the packaged plugin and verifies that
+its Cesium dock and primary controls actually register:
+
+```bash
+GODOT_BIN=/path/to/godot tests/run_editor_tests.sh
+```
+
+On Windows, the equivalent clean-import test is:
+
+```powershell
+./tests/run_editor_tests.ps1 -GodotBin C:\path\to\Godot_console.exe
+```
+
+Both tests begin without an import cache, so they also verify that the dock can
+register while Godot is importing the addon's optional artwork for the first
+time.
+
 The separate C# integration fixture compiles the committed facade and streams
 real local 3D Tiles through a headless Godot .NET process:
 
 ```bash
 GODOT_DOTNET_BIN=/path/to/Godot_v4.6.3-stable_mono_linux.x86_64 \
   tests/run_csharp_tests.sh
+```
+
+An additional compatibility fixture runs those same C# facade and streaming
+contracts through the pinned LibGodot/2dog xUnit host. It deliberately remains
+separate from the supported Godot 4.6.3/.NET 8 runtime baseline:
+
+```bash
+DOTNET10_BIN=/path/to/dotnet tests/run_2dog_tests.sh
 ```
 
 ## Contributing

@@ -7,8 +7,6 @@ const editorAddon := preload("res://addons/cesium_godot/panels/cesium_panel.tscn
 
 const token_panel_popup := preload("res://addons/cesium_godot/panels/token_panel.tscn")
 
-const plus_icon := preload("res://addons/cesium_godot/resources/icons/plus.svg")
-
 const CESIUM_GLOBE_NAME = "CesiumGeoreference"
 const CESIUM_TILESET_NAME = "Cesium3DTileset"
 
@@ -32,6 +30,7 @@ var ion_asset_buttons : Array[Button] = []
 var auth_controller_node : OAuthController = null
 var cesium_builder_node : CesiumGDAssetBuilder = null
 var request_node : HTTPRequest = null
+var inspector_plugin: EditorInspectorPlugin = null
 
 # So, for some reason we cannot have a custom popup because some definitions get lost in instantiation
 # We don't really know why this is, but we circunvent it by just storing the data on another class
@@ -52,7 +51,8 @@ func _enter_tree() -> void:
 	self.token_panel_data = TokenPanelData.new()
 	self.add_child(self.token_panel)
 	self.token_panel.hide()
-	self.add_inspector_plugin(CesiumTooltips.new())
+	self.inspector_plugin = CesiumTooltips.new()
+	self.add_inspector_plugin(self.inspector_plugin)
 	print("Enabled Cesium plugin")
 	self.request_node = HTTPRequest.new()
 	self.add_child(self.request_node)
@@ -61,11 +61,15 @@ func _enter_tree() -> void:
 
 func _exit_tree() -> void:
 	print("Disabled Cesium plugin")
-	remove_control_from_docks(self.docked_scene)
-	self.docked_scene.free()
+	if self.inspector_plugin != null:
+		remove_inspector_plugin(self.inspector_plugin)
+		self.inspector_plugin = null
+	if self.docked_scene != null:
+		remove_control_from_docks(self.docked_scene)
+		self.docked_scene.free()
+		self.docked_scene = null
 
 func init_buttons() -> void:
-	self.add_ion_buttons()
 	self.add_button = self.docked_scene.find_child("AddButton") as Button
 	self.upload_button = self.docked_scene.find_child("UploadButton") as Button
 	self.token_button = self.docked_scene.find_child("TokenButton") as Button
@@ -78,6 +82,7 @@ func init_buttons() -> void:
 	self.dynamic_camera_button = self.docked_scene.find_child("DynamicCameraButton") as Button
 	self.orbit_camera_button = self.docked_scene.find_child("OrbitCameraButton") as Button
 	self.token_panel_data.initialize_fields(self.token_panel)
+	self.apply_editor_icons()
 	
 	# Connect to their signals
 	self.upload_button.pressed.connect(on_upload_pressed)
@@ -91,6 +96,40 @@ func init_buttons() -> void:
 	self.token_button.pressed.connect(on_token_panel_pressed)
 	
 	self.docked_scene.find_child("VisitDepotButton").pressed.connect(on_visit_depot)
+	self.add_ion_buttons()
+
+func apply_editor_icons() -> void:
+	# Editor-owned icons are available immediately, including on the first project
+	# scan. Imported SVG dependencies can prevent the entire dock from registering.
+	var editor_base := get_editor_interface().get_base_control()
+	var icon_bindings := {
+		self.upload_button: "Load",
+		self.token_button: "Key",
+		self.learn_button: "Info",
+		self.help_button: "Help",
+		self.sign_out_button: "Stop",
+		self.blank_tileset_button: "BoxMesh",
+		self.dynamic_camera_button: "Camera3D",
+		self.orbit_camera_button: "Camera3D",
+		self.connect_button: "Connect",
+		self.docked_scene.find_child("VisitDepotButton"): "ExternalLink",
+		self.token_panel.find_child("CloseButton"): "Close",
+	}
+	for control in icon_bindings:
+		if control is Button:
+			(control as Button).icon = editor_base.get_theme_icon(icon_bindings[control], "EditorIcons")
+
+	var texture_bindings := {
+		self.docked_scene.find_child("DynamicCameraIcon"): "Camera3D",
+		self.docked_scene.find_child("BlankTilesetIcon"): "BoxMesh",
+		self.docked_scene.find_child("OrbitCameraIcon"): "Camera3D",
+		self.docked_scene.find_child("ConnectIcon"): "Connect",
+		self.docked_scene.find_child("ConnectedIcon"): "StatusSuccess",
+		self.token_panel.find_child("ActionIcon"): "Play",
+	}
+	for control in texture_bindings:
+		if control is TextureRect:
+			(control as TextureRect).texture = editor_base.get_theme_icon(texture_bindings[control], "EditorIcons")
 
 func on_visit_depot() -> void:
 	OS.shell_open("https://ion.cesium.com/assetdepot")
@@ -156,22 +195,40 @@ func create_orbit_camera():
 	self.cesium_builder_node.instantiate_orbit_cam()
 
 func fetch_ion_asset_list():
+	if self.auth_controller_node == null or not self.auth_controller_node.is_signed_in:
+		return null
 	const url := "https://api.cesium.com/v1/assets";
 	var token : String = CesiumGDConfig.get_singleton(self).accessToken;
+	if token.is_empty():
+		return null
 	var headers: PackedStringArray = ["Authorization: Bearer " + token]
 	var error: int = self.request_node.request(url, headers, HTTPClient.Method.METHOD_GET)
 	if (error != OK):
 		push_error("Error getting the asset list from Cesium: " + error_string(error))
 		return null
 	var response = await self.request_node.request_completed
-	var status = response[1]
+	var status: int = response[1]
 	var bodyBytes := response[3] as PackedByteArray
-	var body := JSON.parse_string(bodyBytes.get_string_from_utf8()) as Dictionary
+	if status < 200 or status >= 300:
+		push_error("Cesium ion asset request failed with HTTP status %d" % status)
+		return null
+	var parsed_body: Variant = JSON.parse_string(bodyBytes.get_string_from_utf8())
+	if not parsed_body is Dictionary:
+		push_error("Cesium ion asset response was not a JSON object")
+		return null
+	var body := parsed_body as Dictionary
+	var items: Variant = body.get("items")
+	if not items is Array:
+		push_error("Cesium ion asset response did not contain an items array")
+		return null
 	var by_type: Dictionary[String, Array] = {}
-	for item in body.items:
-		if item.type not in by_type:
-			by_type[item.type] = Array()
-		by_type[item.type].append(item)
+	for item in items:
+		if not item is Dictionary:
+			continue
+		var item_type := str((item as Dictionary).get("type", "Unknown"))
+		if item_type not in by_type:
+			by_type[item_type] = Array()
+		by_type[item_type].append(item)
 	
 	return by_type
 
@@ -188,17 +245,21 @@ func make_button_container(type: String, entries: Array):
 	for entry in entries:
 		var hbox = HBoxContainer.new()
 		var label = Label.new()
-		label.text = entry.name
+		label.text = str(entry.get("name", "Unnamed asset"))
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		label.size_flags_vertical = Control.SIZE_FILL
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		hbox.add_child(label)
 		var button = Button.new()
-		button.icon = plus_icon
+		button.icon = get_editor_interface().get_base_control().get_theme_icon("Add", "EditorIcons")
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		button.set_meta("ion_name", entry.name)
+		button.set_meta("ion_name", str(entry.get("name", "Unnamed asset")))
 		button.pressed.connect(func():
-			self.cesium_builder_node.instantiate_tileset(int(entry.id), type, entry.name)
+			self.cesium_builder_node.instantiate_tileset(
+				int(entry.get("id", 0)),
+				type,
+				str(entry.get("name", "Unnamed asset")),
+			)
 		)
 		button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		hbox.add_child(button)
@@ -214,7 +275,6 @@ func add_ion_buttons() -> void:
 	var available_assets = await fetch_ion_asset_list()
 	self.set_process(true)
 	if available_assets == null:
-		push_error("Failed to find any avilable assets!")
 		return
 	for type in available_assets.keys():
 		make_button_container(type, available_assets[type])
