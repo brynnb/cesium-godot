@@ -12,6 +12,21 @@ internal static class CSharpFacadeTests
         TestSignals();
         TestCallableCallbacks();
         TestErrorResultsAndValidation();
+        TestCrossPlatformFileUrls();
+    }
+
+    private static void TestCrossPlatformFileUrls()
+    {
+        Require(
+            CesiumUrlUtility.LocalPathToFileUrl(@"C:\World Data\Kōjan tileset.json") ==
+                "file:///C:/World%20Data/K%C5%8Djan%20tileset.json",
+            "Windows drive path did not become a canonical file URL"
+        );
+        Require(
+            CesiumUrlUtility.LocalPathToFileUrl(@"\\server\share name\tileset.json") ==
+                "file://server/share%20name/tileset.json",
+            "UNC path did not become a canonical file URL"
+        );
     }
 
     private static void TestConstructionPropertiesAndMethods()

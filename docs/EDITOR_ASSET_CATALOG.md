@@ -82,8 +82,10 @@ The resolver supports:
 - `res://`, `user://`, and project-relative paths for direct editor entries;
 - percent-encoded spaces and non-ASCII local filenames.
 
-`local_path_to_file_url` and `make_direct_entry` are public helpers for a file
-picker or direct URL field. Unsupported schemes fail explicitly.
+`local_path_to_file_url` delegates to the runtime-wide
+`CesiumUrlUtility.local_path_to_file_url`; `make_direct_entry` remains the
+catalog-specific helper for a file picker or direct URL field. Unsupported
+schemes fail explicitly.
 
 ## Browsing and filtering
 

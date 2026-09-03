@@ -6,18 +6,13 @@
 #include "Models/CesiumGDConfig.h"
 #include "Runtime/Public/Vector/CesiumGeoJsonDocument.h"
 #include "Runtime/Public/Vector/CesiumVectorStyle.h"
+#include "Runtime/Public/Networking/CesiumUrlUtility.h"
 
 #include <CesiumAsync/AsyncSystem.h>
 #include <CesiumVectorOverlays/GeoJsonDocumentRasterOverlay.h>
 #include <CesiumUtility/ErrorList.h>
 #include <CesiumUtility/Result.h>
 #include <CesiumVectorData/GeoJsonDocument.h>
-
-#if defined(CESIUM_GD_EXT)
-#include "godot_cpp/classes/project_settings.hpp"
-#elif defined(CESIUM_GD_MODULE)
-#include "core/config/project_settings.h"
-#endif
 
 #include <algorithm>
 #include <cstddef>
@@ -348,7 +343,7 @@ void CesiumGeoJsonDocumentRasterOverlay::handle_document_result(
 
 String CesiumGeoJsonDocumentRasterOverlay::resolved_url() const {
 	if (this->m_url.begins_with("res://") || this->m_url.begins_with("user://")) {
-		return "file://" + ProjectSettings::get_singleton()->globalize_path(this->m_url);
+		return CesiumUrlUtility::local_path_to_file_url(this->m_url);
 	}
 	return this->m_url;
 }

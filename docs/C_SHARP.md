@@ -22,6 +22,18 @@ var tileset = new Cesium3DTileset
 AddChild(tileset.NativeObject);
 ```
 
+For local content, use the generated cross-platform URL helper rather than
+manually assembling a `file://` prefix:
+
+```csharp
+tileset.Url = CesiumUrlUtility.LocalPathToFileUrl(
+    "res://tiles/tileset.json"
+);
+```
+
+It produces canonical percent-encoded URLs for Windows drives, UNC shares,
+Unix paths, `res://`, `user://`, and project-relative paths.
+
 The generated classes use composition because C# cannot attach a new managed
 base type to an object instantiated by a native GDExtension. Cesium methods,
 properties, enums, constants, and signals are exposed on the wrapper. Use
@@ -115,7 +127,8 @@ It compiles all committed wrappers, then verifies construction across Godot
 node/resource base types; properties and methods; managed, typed, and untyped
 arrays; named and numeric enums; resource identity; signal subscription and
 extension-object arguments; `Callable` decision hooks; native `Error` results;
-and input validation inside a real headless Godot .NET process. The same test
+cross-platform local-file URLs; and input validation inside a real headless
+Godot .NET process. The same test
 then streams the repository's local lifecycle tileset, checks primitive and
 tile signals, material selection, extras, statistics, initial readiness,
 visibility changes, unloading, and a terminal missing-source error.

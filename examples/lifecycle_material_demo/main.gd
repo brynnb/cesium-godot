@@ -85,7 +85,7 @@ func _create_tileset() -> void:
 	tileset = Cesium3DTileset.new()
 	tileset.name = "LocalDemoTileset"
 	tileset.data_source = 1
-	tileset.url = "file://" + ProjectSettings.globalize_path(
+	tileset.url = CesiumUrlUtility.local_path_to_file_url(
 		"res://fixtures/tileset.json"
 	)
 	tileset.create_physics_meshes = false

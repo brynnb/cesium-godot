@@ -151,6 +151,28 @@ jobs:
           GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.6.3/Godot_v4.6.3-stable_linux.x86_64
         run: tests/run_godot_tests.sh
 
+      - name: Download Godot 4.6.3 for Windows runtime smoke test
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = "build/test-engines/godot-4.6.3-windows.zip"
+          $destination = "build/test-engines/godot-4.6.3-windows"
+          New-Item -ItemType Directory -Force -Path $destination | Out-Null
+          Invoke-WebRequest `
+            -Uri "https://github.com/godotengine/godot/releases/download/4.6.3-stable/Godot_v4.6.3-stable_win64.exe.zip" `
+            -OutFile $archive
+          Expand-Archive -Path $archive -DestinationPath $destination
+
+      - name: Test packaged addon on Godot 4.6.3 for Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $godot = Resolve-Path "build/test-engines/godot-4.6.3-windows/Godot_v4.6.3-stable_win64_console.exe"
+          & $godot --headless --path examples/lifecycle_material_demo -- --smoke-test
+          if ($LASTEXITCODE -ne 0) {
+            throw "Windows lifecycle/material smoke test failed with exit code $LASTEXITCODE"
+          }
+
       - name: Upload distributable addon
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

@@ -52,6 +52,9 @@ class BuildConfigurationTests(unittest.TestCase):
             "windows-2022",
             "macos-15",
             "Godot_v4.6.3-stable_linux.x86_64.zip",
+            "Godot_v4.6.3-stable_win64.exe.zip",
+            "Test packaged addon on Godot 4.6.3 for Windows",
+            "--smoke-test",
             "tools/bootstrap_dependencies.py --verify-only",
             "undefined symbol:",
         ):

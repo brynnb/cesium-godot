@@ -106,9 +106,11 @@ The normal test runner invokes it before runtime tests.
 Ubuntu 24.04, Windows 2022, and macOS 15 arm64 runner labels. It builds Linux,
 Windows, and macOS arm64 single-precision artifacts. Linux additionally runs
 Cesium Native tests, resolves the final shared library, and runs the full Godot
-suite on the documented Godot 4.6.3 runtime. Double-precision builds remain a
-supported explicit build configuration, but are not currently part of the
-hosted matrix.
+suite on the documented Godot 4.6.3 runtime. Windows downloads the same Godot
+version and runs the credential-free lifecycle/material demo against the
+newly-built distributable addon, including local-file streaming and unload.
+Double-precision builds remain a supported explicit build configuration, but
+are not currently part of the hosted matrix.
 
 The OS compiler and SDK are supplied by those versioned runner images. A
 runner-image refresh can still change patch-level system tools; the dependency

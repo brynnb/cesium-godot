@@ -74,13 +74,12 @@ URL templates support Cesium Native's placeholders: `{x}`, `{y}`, `{z}`,
 `{reverseX}`, `{reverseY}`, `{reverseZ}`, geographic bounds, projected bounds,
 `{width}`, and `{height}`.
 
-For a local template, globalize the Godot path and use a standards-compliant
-absolute file URI:
+For a local template, use the shared path converter to produce a
+standards-compliant absolute file URI on every supported platform:
 
 ```gdscript
-imagery.template_url = (
-	"file://" +
-	ProjectSettings.globalize_path("res://imagery/{z}/{x}/{y}.png")
+imagery.template_url = CesiumUrlUtility.local_path_to_file_url(
+	"res://imagery/{z}/{x}/{y}.png"
 )
 ```
 
@@ -88,7 +87,11 @@ Local files are read on the Cesium worker pool and returned through the same
 asset-response contract as HTTP imagery. Only `file:///absolute/path` and
 `file://localhost/absolute/path` are accepted; remote file hosts are rejected
 instead of being silently treated as local paths. Local reads are not placed in
-the HTTP cache.
+the HTTP cache. `CesiumUrlUtility.local_path_to_file_url` also accepts native
+Unix, Windows-drive, `user://`, and project-relative paths and applies the
+required percent encoding. It can represent a UNC path canonically, but the
+default accessor rejects remote hosts unless an application supplies an
+explicit network-share access policy.
 
 ## WMS and WMTS
 

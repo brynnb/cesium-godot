@@ -98,6 +98,7 @@ sources = [
     cesium_build_utils.get_root_dir() + "/Godot/Nodes/CesiumGDCreditSystem.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Credits/CesiumCredit.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Networking/NetworkAssetAccessor.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Networking/CesiumUrlUtility.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Networking/InstrumentedCacheDatabase.cpp",
     cesium_build_utils.get_root_dir() + "/Implementations/DocumentContainer.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Renderer/GodotPrepareRenderResources.cpp",

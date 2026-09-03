@@ -36,6 +36,7 @@ class CSharpBindingTests(unittest.TestCase):
         self.assertIn("Cesium3DTileset.cs", names)
         self.assertIn("CesiumGeoreference.cs", names)
         self.assertIn("CesiumRasterOverlay.cs", names)
+        self.assertIn("CesiumUrlUtility.cs", names)
 
     def test_generated_code_excludes_broken_inherited_api_copies(self) -> None:
         combined = "\n".join(path.read_text(encoding="utf-8") for path in self.files)

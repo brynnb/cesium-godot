@@ -157,3 +157,7 @@ compiles the committed generated facade and exercises its ordinary API plus
 real local streaming, lifecycle callbacks, visibility, unloading, and failure
 delivery. Set `GODOT_DOTNET_BIN` to the Godot 4.6.3 .NET executable before
 running it.
+
+The hosted Windows build also launches the packaged addon with the lifecycle
+demo's `--smoke-test` mode. This catches platform-specific DLL loading and
+local-file URL failures that a successful Windows link alone cannot detect.

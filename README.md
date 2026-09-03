@@ -78,6 +78,16 @@ optional, small Godot engine API extension; the
 [occlusion guide](docs/OCCLUSION_CULLING.md) documents the required engine
 change, runtime behavior, fallback, hierarchy requirements, and tests.
 
+Convert local paths through the shared utility instead of assembling a
+`file://` prefix manually; the slash count differs for Windows drives and UNC
+shares:
+
+```gdscript
+tileset.url = CesiumUrlUtility.local_path_to_file_url(
+	"res://tiles/tileset.json"
+)
+```
+
 ### C# projects
 
 The packaged addon includes generated wrappers under

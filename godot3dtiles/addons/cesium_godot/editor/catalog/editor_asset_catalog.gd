@@ -191,33 +191,7 @@ static func resolve_asset_url(
 ## Converts Unix, Windows-drive, UNC, res://, user://, or project-relative
 ## paths to canonical percent-encoded file URLs.
 static func local_path_to_file_url(path: String) -> String:
-	var local_path := path.strip_edges().replace("\\", "/")
-	if local_path.is_empty():
-		return ""
-	if local_path.begins_with("res://") or local_path.begins_with("user://"):
-		local_path = ProjectSettings.globalize_path(local_path)
-	elif not _is_absolute_local_path(local_path):
-		local_path = ProjectSettings.globalize_path("res://" + local_path)
-	local_path = local_path.replace("\\", "/").simplify_path()
-
-	if local_path.begins_with("//"):
-		var unc_parts := local_path.substr(2).split("/", false)
-		if unc_parts.is_empty() or unc_parts[0].is_empty():
-			return ""
-		var unc_url := "file://" + unc_parts[0].uri_encode()
-		for index in range(1, unc_parts.size()):
-			unc_url += "/" + unc_parts[index].uri_encode()
-		return unc_url
-
-	if _is_windows_drive_path(local_path):
-		var drive := local_path.substr(0, 1).to_upper()
-		var drive_tail := local_path.substr(3) if local_path.length() > 3 else ""
-		var drive_url := "file:///" + drive + ":/"
-		return drive_url + _encode_path(drive_tail, false)
-
-	if not local_path.begins_with("/"):
-		return ""
-	return "file://" + _encode_path(local_path, true)
+	return CesiumUrlUtility.local_path_to_file_url(path)
 
 
 static func _normalize_entry(
@@ -484,17 +458,6 @@ static func _normalize_url_path(path: String) -> String:
 	if path.ends_with("/") and not normalized.ends_with("/"):
 		normalized += "/"
 	return normalized
-
-
-static func _encode_path(path: String, preserve_leading_slash: bool) -> String:
-	var leading_slash := preserve_leading_slash and path.begins_with("/")
-	var encoded := PackedStringArray()
-	for segment in path.split("/", true):
-		if segment.is_empty():
-			continue
-		encoded.append(segment.uri_encode())
-	var result := "/".join(encoded)
-	return "/" + result if leading_slash else result
 
 
 static func _decode_url_path(path: String) -> String:
