@@ -96,7 +96,14 @@ jobs:
 
       - name: Install locked Android NDK
         if: matrix.platform == 'android'
-        run: yes | sdkmanager "ndk;28.1.13356709"
+        run: |
+          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:?Android SDK root is not configured}}"
+          sdkmanager_bin="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager_bin" ]]; then
+            echo "sdkmanager was not found at $sdkmanager_bin" >&2
+            exit 1
+          fi
+          "$sdkmanager_bin" --install "ndk;28.1.13356709"
 
       - name: Configure short Windows dependency root
         if: runner.os == 'Windows'
