@@ -161,6 +161,11 @@ Both tests begin without an import cache, so they also verify that the dock can
 register while Godot is importing the addon's optional artwork for the first
 time.
 
+Editor account login uses Cesium Native's PKCE/state-validated ion flow and
+stores its refreshable session in the operating-system credential vault when
+one is available, otherwise only in memory. It is kept separate from restricted runtime asset tokens; see the
+[ion authorization guide](docs/ION_AUTHORIZATION.md).
+
 The separate C# integration fixture compiles the committed facade and streams
 real local 3D Tiles through a headless Godot .NET process:
 

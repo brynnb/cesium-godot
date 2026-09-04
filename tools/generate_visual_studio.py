@@ -15,6 +15,24 @@ from typing import Sequence
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def expected_compiled_sources() -> set[str]:
+    """Return the sources from the same canonical inputs as the SCons build."""
+    scsub = (ROOT / "cesium_godot/SCsub").read_text(encoding="utf-8-sig")
+    cesium_sources = {
+        "cesium_godot/" + path.lstrip("/")
+        for path in re.findall(
+            r'get_root_dir\(\) \+ "(/[^"]+\.(?:c|cc|cpp))"',
+            scsub,
+        )
+    }
+    auxiliary_sources = {
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "cesium_auxiliars").rglob("*")
+        if path.is_file() and path.suffix.lower() in {".c", ".cc", ".cpp"}
+    }
+    return cesium_sources | auxiliary_sources
+
+
 def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", dest="json_output")
@@ -65,11 +83,19 @@ def main(arguments: Sequence[str] | None = None) -> int:
     ):
         if required not in project_text:
             raise SystemExit(f"Visual Studio project is missing {required}")
-    compiled_sources = project_text.count("<ClCompile Include=")
-    if compiled_sources != 86:
+    project_sources = {
+        path.replace("\\", "/")
+        for path in re.findall(r'<ClCompile Include="([^"]+)"', project_text)
+    }
+    expected_sources = expected_compiled_sources()
+    if project_sources != expected_sources:
+        missing = sorted(expected_sources - project_sources)
+        unexpected = sorted(project_sources - expected_sources)
         raise SystemExit(
-            f"Visual Studio project listed {compiled_sources} compiled sources; expected 86"
+            "Visual Studio project source inventory differs from SCsub: "
+            f"missing={missing}, unexpected={unexpected}"
         )
+    compiled_sources = len(project_sources)
 
     report = {
         "generator": "SCons",

@@ -45,6 +45,9 @@ Native APIs are not a supported compatibility target.
   renderer tests before their roots are inspected.
 - Keep cancellation out of glTF asset-error reporting while allowing
   depot-owned image and schema fetches to complete safely for other consumers.
+- Make Cesium Native's PKCE/state-validated ion authorization operation
+  explicitly cancelable so disabling the editor plugin or canceling sign-in
+  always closes its temporary loopback listener.
 
 Two changes formerly carried downstream are present upstream in v0.63.0 and
 are deliberately no longer patched here: external glTF buffers resolve before
@@ -66,7 +69,7 @@ while retaining the standalone exception contract.
 
 ## Durable patch and build contract
 
-These changes no longer depend on the development-only checkout path. The 14
+These changes no longer depend on the development-only checkout path. The 15
 patches are preserved as an ordered, SHA-256-locked mail patch series under
 `dependencies/cesium-native-patches`. The bootstrap starts from the exact
 v0.63.0 commit, applies that series, and requires the final Git tree recorded

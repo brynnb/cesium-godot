@@ -19,16 +19,18 @@ var last_existing_tokens: Dictionary
 
 var token_troubleshooting: TokenTroubleshooting
 
-var request_node: HTTPRequest
-
-
 var current_token_usage: TokenUsageType = TokenUsageType.Specific
 
 var default_config: CesiumGDConfig = null
+var ion_session: CesiumIonEditorSession = null
 
-func initialize_fields(token_panel: Popup) -> void:
+func initialize_fields(
+	token_panel: Popup,
+	editor_session: CesiumIonEditorSession
+) -> void:
 	token_panel.find_child("CloseButton").pressed.connect(func (): token_panel.hide())
 	
+	self.ion_session = editor_session
 	self.default_config = CesiumGDConfig.get_singleton(token_panel)
 	self.token_troubleshooting = TokenTroubleshooting.new()
 	token_panel.add_child(self.token_troubleshooting)
@@ -55,8 +57,6 @@ func initialize_fields(token_panel: Popup) -> void:
 	token_panel.about_to_popup.connect(initialize_panel_buttons_from_state)
 	self.create_or_use_token_button.pressed.connect(apply_or_create_token)
 	self.test_token_button.pressed.connect(on_test_button_pressed)	
-	self.request_node = HTTPRequest.new()
-	token_panel.add_child(self.request_node)
 	self.token_troubleshooting.set_data(self)
 
 
@@ -92,27 +92,19 @@ func on_existing_token_check(checked: bool) -> void:
 	self.new_token_check.button_pressed = false
 	self.specific_token_check.button_pressed = false
 	self.current_token_usage = TokenPanelData.TokenUsageType.Existing
-	# Send a request to get the token we want to use
-	const url := "https://api.cesium.com/v2/tokens"
-	var token : String = self.default_config.accessToken;
-	var headers: PackedStringArray = ["Authorization: Bearer " + token]
-	var err : int = self.request_node.request(url, headers)
-	if (err != OK):
-		push_error("Error getting tokens from Cesium Ion, try connecting manually!")
+	if self.ion_session == null or not self.ion_session.is_connected:
+		push_error("Sign in to Cesium ion before listing account tokens")
 		return
-	
-	var response = await self.request_node.request_completed
-	var status = response[1]
-	var bodyBytes := response[3] as PackedByteArray
-	var body := JSON.parse_string(bodyBytes.get_string_from_utf8()) as Dictionary
-
-	if (status >= HTTPClient.ResponseCode.RESPONSE_BAD_REQUEST):
-		push_error("Error connecting to the Cesium API for tokens, try signing in manually, server responded with: " + str(status) + "\nBody: " + str(body))
+	self.ion_session.request_tokens()
+	var completion: Array = await self.ion_session.operation_completed
+	while completion[0] != "tokens":
+		completion = await self.ion_session.operation_completed
+	if not completion[1]:
+		push_error(str(completion[3]))
 		return
-	var items := body.get("items") as Array
-	if (items == null):
-		push_error("Failed to parse request, in body expected \"items\", found: " + str(body))
-		return
+	var items := completion[2] as Array
+	self.last_existing_tokens.clear()
+	self.existing_tokens_list.clear()
 	for item in items:
 		item = item as Dictionary
 		var name = item.get("name")
@@ -142,40 +134,28 @@ func apply_or_create_token() -> void:
 
 
 func create_new_token() -> String:
-	const url := "https://api.cesium.com/v2/tokens"
-	# Make a POST and add the name, we'll default to all assets
-	var token : String = self.default_config.accessToken;
-	var headers: PackedStringArray = ["Authorization: Bearer " + token, "Content-Type: application/json"]
-
-	var scopes := [
+	if self.ion_session == null or not self.ion_session.is_connected:
+		push_error("Sign in to Cesium ion before creating an account token")
+		return ""
+	var scopes := PackedStringArray([
 		"assets:list",
 		"assets:read",
 		"geocode",
 		"tokens:read",
-	]
-	var reqBody: Dictionary = { "name": self.new_token_name.text, "scopes": scopes }
-	var reqBodyStr: String = JSON.stringify(reqBody)
-	var err : int = self.request_node.request(url, headers, HTTPClient.METHOD_POST, reqBodyStr)
-	const errMsg := "Error creating a Cesium Ion token, try connecting manually!"
-	if (err != OK):
-		push_error(errMsg)
+	])
+	self.ion_session.create_token(self.new_token_name.text, scopes)
+	var completion: Array = await self.ion_session.operation_completed
+	while completion[0] != "create_token":
+		completion = await self.ion_session.operation_completed
+	if not completion[1]:
+		push_error(str(completion[3]))
 		return ""
-	
-	var response = await self.request_node.request_completed
-	var status = response[1]
-
-	var bodyBytes := response[3] as PackedByteArray
-	var body := JSON.parse_string(bodyBytes.get_string_from_utf8()) as Dictionary
-
-	if (status >= HTTPClient.ResponseCode.RESPONSE_BAD_REQUEST):		
-		push_error(errMsg + "\nResponse body: " + str(body))
+	var body := completion[2] as Dictionary
+	var result_token := str(body.get("token", ""))
+	if result_token.is_empty():
+		push_error("Cesium ion created a token without returning its value")
 		return ""
-	
-	var resultToken: String = body.get("token")
-	if (resultToken == null):
-		push_error(errMsg + "\nResponse body: " + str(body))
-		return ""
-	return resultToken
+	return result_token
 
 # Finds a sibling node by name or predicate function.
 # Returns `null` if no matching sibling is found.

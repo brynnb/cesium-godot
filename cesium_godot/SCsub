@@ -100,6 +100,8 @@ sources = [
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Networking/NetworkAssetAccessor.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Networking/CesiumUrlUtility.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Networking/InstrumentedCacheDatabase.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Ion/CesiumEditorCredentialStore.cpp",
+    cesium_build_utils.get_root_dir() + "/Runtime/Private/Ion/CesiumIonEditorSession.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Renderer/GodotPrepareRenderResources.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Async/GodotTaskProcessor.cpp",
     cesium_build_utils.get_root_dir() + "/Runtime/Private/Renderer/CesiumGDModelLoader.cpp",
@@ -228,6 +230,7 @@ if target_platform == "windows":
         # transitively when the GDExtension is linked with MSVC.
         "libcrypto",
         "iphlpapi",
+        "advapi32",
         "secur32",
         "user32",
         "absl_base",

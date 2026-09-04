@@ -42,3 +42,5 @@ if grep -Fq "Invalid access to property or key 'items'" "${output_file}"; then
 	echo "Cesium editor plugin tried to consume an invalid ion response" >&2
 	exit 1
 fi
+
+GODOT_BIN="${godot_bin}" "${repo_root}/tests/run_ion_editor_e2e_test.sh"

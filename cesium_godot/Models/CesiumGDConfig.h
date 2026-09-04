@@ -11,7 +11,11 @@ using namespace godot;
 
 #include <string_view>
 
-/// @brief Configuration resource for Cesium's server components
+/// @brief Explicit runtime asset-token configuration.
+///
+/// This token belongs to the authored application. Editor account login and
+/// refresh tokens are owned separately by CesiumIonEditorSession and are never
+/// copied into this node.
 class CesiumGDConfig : public Node3D {
 	GDCLASS(CesiumGDConfig, Node3D)
 public:
@@ -28,12 +32,10 @@ public:
 	static CesiumGDConfig* get_singleton(Node* baseNode);
 
 	static void clear_session();
-		
+
 	void _enter_tree() override;
 	
 private:
-	Error create_cache_session_file();
-	
 	String m_accessToken = "";
 	static inline CesiumGDConfig* s_instance = nullptr;
 	

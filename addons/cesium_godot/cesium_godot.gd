@@ -27,9 +27,8 @@ var ion_button_holder : Control
 
 var ion_asset_buttons : Array[Button] = []
 
-var auth_controller_node : OAuthController = null
+var ion_session : CesiumIonEditorSession = null
 var cesium_builder_node : CesiumGDAssetBuilder = null
-var request_node : HTTPRequest = null
 var inspector_plugin: EditorInspectorPlugin = null
 
 # So, for some reason we cannot have a custom popup because some definitions get lost in instantiation
@@ -43,8 +42,11 @@ func _enter_tree() -> void:
 	self.docked_scene = editorAddon.instantiate()
 	add_control_to_dock(EditorPlugin.DOCK_SLOT_RIGHT_UL, self.docked_scene)
 	self.set_session_buttons_enabled(false)
-	self.auth_controller_node = OAuthController.new()
-	self.add_child(self.auth_controller_node)
+	self.ion_session = CesiumIonEditorSession.new()
+	self.ion_session.name = "CesiumIonEditorSession"
+	self.ion_session.state_changed.connect(_on_ion_session_state_changed)
+	self.ion_session.authorization_failed.connect(_on_ion_authorization_failed)
+	self.add_child(self.ion_session)
 	self.cesium_builder_node = CesiumGDAssetBuilder.new()
 	self.add_child(self.cesium_builder_node)
 	self.token_panel = self.token_panel_popup.instantiate()
@@ -54,8 +56,6 @@ func _enter_tree() -> void:
 	self.inspector_plugin = CesiumTooltips.new()
 	self.add_inspector_plugin(self.inspector_plugin)
 	print("Enabled Cesium plugin")
-	self.request_node = HTTPRequest.new()
-	self.add_child(self.request_node)
 	self.init_buttons()
 
 
@@ -81,7 +81,7 @@ func init_buttons() -> void:
 	self.blank_tileset_button = self.docked_scene.find_child("BlankTilesetButton") as Button
 	self.dynamic_camera_button = self.docked_scene.find_child("DynamicCameraButton") as Button
 	self.orbit_camera_button = self.docked_scene.find_child("OrbitCameraButton") as Button
-	self.token_panel_data.initialize_fields(self.token_panel)
+	self.token_panel_data.initialize_fields(self.token_panel, self.ion_session)
 	self.apply_editor_icons()
 	
 	# Connect to their signals
@@ -145,11 +145,9 @@ func set_session_buttons_enabled(enabled: bool) -> void:
 		(btn as Button).disabled = !enabled
 
 func _process(delta: float) -> void:
-	if self.auth_controller_node == null:
+	if self.ion_session == null:
 		return
-	if self.auth_controller_node.is_signed_in and connect_button.visible:
-		self.toggle_connected(true)
-	self.set_session_buttons_enabled(self.auth_controller_node.is_signed_in)
+	self.set_session_buttons_enabled(self.ion_session.is_connected)
 
 # All of the buttons that become available once the user logs in
 func get_utility_buttons() -> Array[Button]:
@@ -170,17 +168,26 @@ func toggle_connected(state: bool) -> void:
 	self.connect_button.visible = !state
 
 func on_connect_pressed() -> void:
-	#Open the browser with a TCP server, or show the URL
-	if self.auth_controller_node.is_connecting:
-		self.auth_controller_node.cancel_connection()
+	if self.ion_session.is_connecting:
+		self.ion_session.cancel_connection()
 		self.toggle_connected(false)
 		return
-	await self.auth_controller_node.get_auth_code()
-	self.toggle_connected(true)
+	self.ion_session.connect_to_ion()
 
 func on_sign_out_pressed():
-	self.auth_controller_node.sign_out()
+	self.ion_session.sign_out()
 	self.toggle_connected(false)
+
+func _on_ion_session_state_changed(_state: int) -> void:
+	if self.ion_session == null:
+		return
+	self.toggle_connected(self.ion_session.is_connected)
+	self.set_session_buttons_enabled(self.ion_session.is_connected)
+	if self.ion_session.is_connected:
+		self.add_ion_buttons()
+
+func _on_ion_authorization_failed(message: String) -> void:
+	push_error("Cesium ion sign-in failed: " + message)
 
 func on_georef_checked(is_checked: bool) -> void:
 	self.cesium_builder_node.use_georeferences = is_checked
@@ -195,32 +202,16 @@ func create_orbit_camera():
 	self.cesium_builder_node.instantiate_orbit_cam()
 
 func fetch_ion_asset_list():
-	if self.auth_controller_node == null or not self.auth_controller_node.is_signed_in:
+	if self.ion_session == null or not self.ion_session.is_connected:
 		return null
-	const url := "https://api.cesium.com/v1/assets";
-	var token : String = CesiumGDConfig.get_singleton(self).accessToken;
-	if token.is_empty():
+	self.ion_session.request_assets()
+	var completion: Array = await self.ion_session.operation_completed
+	while completion[0] != "assets":
+		completion = await self.ion_session.operation_completed
+	if not completion[1]:
+		push_error(str(completion[3]))
 		return null
-	var headers: PackedStringArray = ["Authorization: Bearer " + token]
-	var error: int = self.request_node.request(url, headers, HTTPClient.Method.METHOD_GET)
-	if (error != OK):
-		push_error("Error getting the asset list from Cesium: " + error_string(error))
-		return null
-	var response = await self.request_node.request_completed
-	var status: int = response[1]
-	var bodyBytes := response[3] as PackedByteArray
-	if status < 200 or status >= 300:
-		push_error("Cesium ion asset request failed with HTTP status %d" % status)
-		return null
-	var parsed_body: Variant = JSON.parse_string(bodyBytes.get_string_from_utf8())
-	if not parsed_body is Dictionary:
-		push_error("Cesium ion asset response was not a JSON object")
-		return null
-	var body := parsed_body as Dictionary
-	var items: Variant = body.get("items")
-	if not items is Array:
-		push_error("Cesium ion asset response did not contain an items array")
-		return null
+	var items := completion[2] as Array
 	var by_type: Dictionary[String, Array] = {}
 	for item in items:
 		if not item is Dictionary:
@@ -278,10 +269,3 @@ func add_ion_buttons() -> void:
 		return
 	for type in available_assets.keys():
 		make_button_container(type, available_assets[type])
-		
-func is_http_request_busy(http_request: HTTPRequest) -> bool:
-	return http_request.get_http_client_status() in [
-		HTTPClient.STATUS_CONNECTING,
-		HTTPClient.STATUS_REQUESTING,
-		HTTPClient.STATUS_BODY
-	]

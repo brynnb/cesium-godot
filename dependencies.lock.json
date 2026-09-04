@@ -28,7 +28,7 @@
       "ref": "v0.63.0",
       "base_commit": "b4137763914820b01a42b52ee886a55b036cd6ac",
       "base_tree": "453e4549732ba163ac8ad05c884fb5cae2fe556d",
-      "patched_tree": "ff56b957466b3626f99623a5fa6599fd31a99ca8",
+      "patched_tree": "5e994a5287743bab2bb12d6590f5fc4524fbb02d",
       "patches": [
         {
           "path": "dependencies/cesium-native-patches/0001-Resume-renderer-preparation-across-frames.patch",
@@ -85,6 +85,10 @@
         {
           "path": "dependencies/cesium-native-patches/0014-Keep-glTF-cancellation-out-of-asset-errors-and-shared-fetches.patch",
           "sha256": "7236115ffce61b28f3f2bb247cf1f42cb72f4de5039bc5c4d60d6e776ef7eb41"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0015-Make-ion-OAuth-authorization-cancelable.patch",
+          "sha256": "15b6f13a3137299b5c1816a63aca3ee33fb5f082f7da5baee8a7b48286aad94d"
         }
       ]
     },

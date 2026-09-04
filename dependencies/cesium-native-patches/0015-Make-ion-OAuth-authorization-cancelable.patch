@@ -1,0 +1,458 @@
+From 73c4d1843fa66ef8adc8e4718eb7c32f2a87c5f3 Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Thu, 3 Sep 2026 17:54:00 -0700
+Subject: [PATCH] Make ion OAuth authorization cancelable
+
+---
+ .../include/CesiumClientCommon/OAuth2PKCE.h   | 25 +++++-
+ CesiumClientCommon/src/OAuth2PKCE.cpp         | 87 +++++++++++++++----
+ CesiumClientCommon/test/TestOAuth2PKCE.cpp    | 50 +++++++++++
+ .../include/CesiumIonClient/Connection.h      | 20 +++++
+ CesiumIonClient/src/Connection.cpp            | 57 +++++++++---
+ CesiumNativeTests/CMakeLists.txt              |  1 +
+ 6 files changed, 206 insertions(+), 34 deletions(-)
+ create mode 100644 CesiumClientCommon/test/TestOAuth2PKCE.cpp
+
+diff --git a/CesiumClientCommon/include/CesiumClientCommon/OAuth2PKCE.h b/CesiumClientCommon/include/CesiumClientCommon/OAuth2PKCE.h
+index 4dd13b4d5..077a129da 100644
+--- a/CesiumClientCommon/include/CesiumClientCommon/OAuth2PKCE.h
++++ b/CesiumClientCommon/include/CesiumClientCommon/OAuth2PKCE.h
+@@ -7,6 +7,7 @@
+ #include <CesiumAsync/IAssetAccessor.h>
+ #include <CesiumUtility/Result.h>
+ 
++#include <functional>
+ #include <optional>
+ #include <string>
+ 
+@@ -65,6 +66,18 @@ struct OAuth2ClientOptions {
+   bool useJsonBody;
+ };
+ 
++/**
++ * @brief An in-progress OAuth2 authorization operation.
++ *
++ * The future resolves with the authorization result. Calling `cancel` closes
++ * the temporary loopback listener and resolves the future with a cancellation
++ * error. Cancellation is idempotent and safe to invoke after completion.
++ */
++struct OAuth2Authorization {
++  CesiumAsync::Future<CesiumUtility::Result<OAuth2TokenResponse>> future;
++  std::function<void()> cancel;
++};
++
+ /**
+  * @brief Class for authenticating with an API that uses OAuth2 Proof of Key
+  * Code Exchange (PKCE).
+@@ -77,6 +90,16 @@ struct OAuth2ClientOptions {
+  */
+ class CESIUMCLIENTCOMMON_API OAuth2PKCE {
+ public:
++  static OAuth2Authorization authorizeCancelable(
++      const CesiumAsync::AsyncSystem& asyncSystem,
++      const std::shared_ptr<CesiumAsync::IAssetAccessor>& pAssetAccessor,
++      const std::string& friendlyApplicationName,
++      const OAuth2ClientOptions& clientOptions,
++      const std::vector<std::string>& scopes,
++      std::function<void(const std::string&)>&& openUrlCallback,
++      const std::string& tokenEndpointUrl,
++      const std::string& authorizeBaseUrl);
++
+   /**
+    * @brief Initiates the OAuth2 PKCE authentication process.
+    *
+@@ -152,4 +175,4 @@ private:
+       const std::string& codeVerifier);
+ };
+ 
+-} // namespace CesiumClientCommon
+\ No newline at end of file
++} // namespace CesiumClientCommon
+diff --git a/CesiumClientCommon/src/OAuth2PKCE.cpp b/CesiumClientCommon/src/OAuth2PKCE.cpp
+index 14d14c9d9..b038861b6 100644
+--- a/CesiumClientCommon/src/OAuth2PKCE.cpp
++++ b/CesiumClientCommon/src/OAuth2PKCE.cpp
+@@ -21,6 +21,7 @@
+ #include <rapidjson/writer.h>
+ 
+ #include <algorithm>
++#include <atomic>
+ #include <cstddef>
+ #include <cstdint>
+ #include <exception>
+@@ -66,6 +67,19 @@ namespace CesiumClientCommon {
+ 
+ namespace {
+ #ifndef __EMSCRIPTEN__
++struct AuthorizationState {
++  AuthorizationState(
++      CesiumAsync::Promise<Result<OAuth2TokenResponse>> promise_,
++      std::shared_ptr<httplib::Server> pServer_)
++      : promise(std::move(promise_)), pServer(std::move(pServer_)) {}
++
++  CesiumAsync::Promise<Result<OAuth2TokenResponse>> promise;
++  std::shared_ptr<httplib::Server> pServer;
++  std::atomic_bool completed{false};
++
++  bool beginCompletion() { return !this->completed.exchange(true); }
++};
++
+ std::string encodeBase64(const std::vector<uint8_t>& bytes) {
+   const size_t count = modp_b64_encode_len(bytes.size());
+   std::string result(count, 0);
+@@ -180,7 +194,7 @@ std::string createAuthorizationErrorHtml(
+ #endif // #ifndef __EMSCRIPTEN__
+ } // namespace
+ 
+-CesiumAsync::Future<Result<OAuth2TokenResponse>> OAuth2PKCE::authorize(
++OAuth2Authorization OAuth2PKCE::authorizeCancelable(
+     const CesiumAsync::AsyncSystem& asyncSystem,
+     [[maybe_unused]] const std::shared_ptr<CesiumAsync::IAssetAccessor>&
+         pAssetAccessor,
+@@ -194,23 +208,27 @@ CesiumAsync::Future<Result<OAuth2TokenResponse>> OAuth2PKCE::authorize(
+   // Currently we just fail the authorization attempt in Emscripten / web
+   // builds. In theory, we can do a more web-oriented authorization flow here
+   // instead.
+-  return asyncSystem.createResolvedFuture<Result<OAuth2TokenResponse>>(
+-      Result<OAuth2TokenResponse>(
+-          ErrorList::error("OAuth2 PKCE authorization is not supported in "
+-                           "Emscripten / WebAssembly builds.")));
++  return OAuth2Authorization{
++      asyncSystem.createResolvedFuture<Result<OAuth2TokenResponse>>(
++          Result<OAuth2TokenResponse>(ErrorList::error(
++              "OAuth2 PKCE authorization is not supported in "
++              "Emscripten / WebAssembly builds."))),
++      []() {}};
+ #else  // #ifdef __EMSCRIPTEN__
+   auto promise = asyncSystem.createPromise<Result<OAuth2TokenResponse>>();
+ 
+   std::shared_ptr<httplib::Server> pServer =
+       std::make_shared<httplib::Server>();
++  std::shared_ptr<AuthorizationState> authorizationState =
++      std::make_shared<AuthorizationState>(promise, pServer);
+   int port;
+   if (clientOptions.redirectPort) {
+     port = *clientOptions.redirectPort;
+     if (!pServer->bind_to_port("127.0.0.1", port)) {
++      authorizationState->completed = true;
+       promise.resolve(Result<OAuth2TokenResponse>(ErrorList::error(fmt::format(
+-          "Internal HTTP server failed to bind to port {}.",
+-          port))));
+-      return promise.getFuture();
++          "Internal HTTP server failed to bind to port {}.", port))));
++      return OAuth2Authorization{promise.getFuture(), []() {}};
+     }
+   } else {
+     port = pServer->bind_to_any_port("127.0.0.1");
+@@ -249,8 +267,7 @@ CesiumAsync::Future<Result<OAuth2TokenResponse>> OAuth2PKCE::authorize(
+ 
+   pServer->Get(
+       clientOptions.redirectPath,
+-      [promise,
+-       pServer,
++      [authorizationState,
+        asyncSystem,
+        pAssetAccessor,
+        friendlyApplicationName,
+@@ -261,7 +278,12 @@ CesiumAsync::Future<Result<OAuth2TokenResponse>> OAuth2PKCE::authorize(
+        codeVerifier](
+           const httplib::Request& request,
+           httplib::Response& response) {
+-        pServer->stop();
++        authorizationState->pServer->stop();
++        if (!authorizationState->beginCompletion()) {
++          response.status = 410;
++          response.set_content("Authorization was canceled.", "text/plain");
++          return;
++        }
+ 
+         std::string error = request.get_param_value("error");
+         std::string errorDescription =
+@@ -281,7 +303,7 @@ CesiumAsync::Future<Result<OAuth2TokenResponse>> OAuth2PKCE::authorize(
+                   errorMessage,
+                   errorDescriptionMessage),
+               "text/html");
+-          promise.resolve(Result<OAuth2TokenResponse>(
++          authorizationState->promise.resolve(Result<OAuth2TokenResponse>(
+               ErrorList{{errorMessage, errorDescriptionMessage}, {}}));
+           return;
+         }
+@@ -295,7 +317,7 @@ CesiumAsync::Future<Result<OAuth2TokenResponse>> OAuth2PKCE::authorize(
+                   "Invalid state",
+                   "The redirection received an invalid state"),
+               "text/html");
+-          promise.resolve(Result<OAuth2TokenResponse>(
++          authorizationState->promise.resolve(Result<OAuth2TokenResponse>(
+               ErrorList{{"Received an invalid state."}, {}}));
+           return;
+         }
+@@ -325,34 +347,61 @@ CesiumAsync::Future<Result<OAuth2TokenResponse>> OAuth2PKCE::authorize(
+                 "text/html");
+           }
+ 
+-          promise.resolve(std::move(tokenExchangeResult));
++          authorizationState->promise.resolve(std::move(tokenExchangeResult));
+         } catch (const std::exception& exception) {
+           response.set_content(
+               createAuthorizationErrorHtml(friendlyApplicationName, exception),
+               "text/html");
+-          promise.reject(std::current_exception());
++          authorizationState->promise.reject(std::current_exception());
+         } catch (...) {
+           response.set_content(
+               createAuthorizationErrorHtml(
+                   friendlyApplicationName,
+                   std::runtime_error("Unknown error")),
+               "text/html");
+-          promise.reject(std::current_exception());
++          authorizationState->promise.reject(std::current_exception());
+         }
+       });
+ 
+-  // TODO: Make this process cancelable, and shut down the server when it's
+-  // canceled.
+   std::thread([pServer, authorizeUrl]() {
+     pServer->listen_after_bind();
+   }).detach();
+ 
+   openUrlCallback(authorizeUrl);
+ 
+-  return promise.getFuture();
++  return OAuth2Authorization{
++      promise.getFuture(),
++      [authorizationState]() {
++        authorizationState->pServer->stop();
++        if (authorizationState->beginCompletion()) {
++          authorizationState->promise.resolve(Result<OAuth2TokenResponse>(ErrorList::error(
++              "OAuth2 authorization was canceled.")));
++        }
++      }};
+ #endif // #ifdef __EMSCRIPTEN__ #else
+ }
+ 
++CesiumAsync::Future<Result<OAuth2TokenResponse>> OAuth2PKCE::authorize(
++    const CesiumAsync::AsyncSystem& asyncSystem,
++    const std::shared_ptr<CesiumAsync::IAssetAccessor>& pAssetAccessor,
++    const std::string& friendlyApplicationName,
++    const OAuth2ClientOptions& clientOptions,
++    const std::vector<std::string>& scopes,
++    std::function<void(const std::string&)>&& openUrlCallback,
++    const std::string& tokenEndpointUrl,
++    const std::string& authorizeBaseUrl) {
++  OAuth2Authorization authorization = authorizeCancelable(
++      asyncSystem,
++      pAssetAccessor,
++      friendlyApplicationName,
++      clientOptions,
++      scopes,
++      std::move(openUrlCallback),
++      tokenEndpointUrl,
++      authorizeBaseUrl);
++  return std::move(authorization.future);
++}
++
+ CesiumAsync::Future<Result<OAuth2TokenResponse>>
+ OAuth2PKCE::completeTokenExchange(
+     const CesiumAsync::AsyncSystem& asyncSystem,
+diff --git a/CesiumClientCommon/test/TestOAuth2PKCE.cpp b/CesiumClientCommon/test/TestOAuth2PKCE.cpp
+new file mode 100644
+index 000000000..077cea872
+--- /dev/null
++++ b/CesiumClientCommon/test/TestOAuth2PKCE.cpp
+@@ -0,0 +1,50 @@
++#include <CesiumAsync/AsyncSystem.h>
++#include <CesiumClientCommon/OAuth2PKCE.h>
++#include <CesiumNativeTests/SimpleTaskProcessor.h>
++
++#include <doctest/doctest.h>
++#include <httplib.h>
++
++#include <memory>
++#include <string>
++#include <vector>
++
++using namespace CesiumAsync;
++using namespace CesiumClientCommon;
++using namespace CesiumNativeTests;
++
++TEST_CASE("OAuth2PKCE authorization can be canceled") {
++  AsyncSystem asyncSystem(std::make_shared<SimpleTaskProcessor>());
++  std::string openedUrl;
++
++  OAuth2Authorization authorization = OAuth2PKCE::authorizeCancelable(
++      asyncSystem,
++      nullptr,
++      "Cesium Native Test",
++      OAuth2ClientOptions{"1234", "/oauth/callback", std::nullopt, true},
++      std::vector<std::string>{"profile:read"},
++      [&openedUrl](const std::string& url) { openedUrl = url; },
++      "https://example.com/oauth/token",
++      "https://example.com/oauth");
++
++  CHECK(openedUrl.find("code_challenge=") != std::string::npos);
++  CHECK(openedUrl.find("state=") != std::string::npos);
++  CHECK(openedUrl.find("http%3A%2F%2F127.0.0.1%3A") != std::string::npos);
++
++  const std::string portPrefix = "http%3A%2F%2F127.0.0.1%3A";
++  const size_t portStart = openedUrl.find(portPrefix) + portPrefix.size();
++  const size_t portEnd = openedUrl.find("%2F", portStart);
++  REQUIRE(portEnd != std::string::npos);
++  const int port = std::stoi(openedUrl.substr(portStart, portEnd - portStart));
++
++  authorization.cancel();
++  authorization.cancel();
++  auto result = std::move(authorization.future).wait();
++  CHECK_FALSE(result.value.has_value());
++  REQUIRE(result.errors.errors.size() == 1);
++  CHECK(result.errors.errors[0].find("canceled") != std::string::npos);
++
++  httplib::Server replacementServer;
++  CHECK(replacementServer.bind_to_port("127.0.0.1", port));
++  replacementServer.stop();
++}
+diff --git a/CesiumIonClient/include/CesiumIonClient/Connection.h b/CesiumIonClient/include/CesiumIonClient/Connection.h
+index 60b81e59c..43526c69e 100644
+--- a/CesiumIonClient/include/CesiumIonClient/Connection.h
++++ b/CesiumIonClient/include/CesiumIonClient/Connection.h
+@@ -17,12 +17,15 @@
+ #include <CesiumUtility/Result.h>
+ 
+ #include <cstdint>
++#include <functional>
+ #include <mutex>
+ #include <optional>
+ #include <string>
+ 
+ namespace CesiumIonClient {
+ 
++struct ConnectionAuthorization;
++
+ /**
+  * @brief Whether sorted results should be ascending or descending.
+  */
+@@ -72,6 +75,18 @@ struct ListTokensOptions {
+  */
+ class CESIUMASYNC_API Connection {
+ public:
++  static ConnectionAuthorization authorizeCancelable(
++      const CesiumAsync::AsyncSystem& asyncSystem,
++      const std::shared_ptr<CesiumAsync::IAssetAccessor>& pAssetAccessor,
++      const std::string& friendlyApplicationName,
++      int64_t clientID,
++      const std::string& redirectPath,
++      const std::vector<std::string>& scopes,
++      std::function<void(const std::string&)>&& openUrlCallback,
++      const CesiumIonClient::ApplicationData& appData,
++      const std::string& ionApiUrl = "https://api.cesium.com/",
++      const std::string& ionAuthorizeUrl = "https://ion.cesium.com/oauth");
++
+   /**
+    * @brief Authorizes access to Cesium ion on behalf of a user, and returns a
+    * {@link Connection} that can be used to interact with ion.
+@@ -425,4 +440,9 @@ private:
+   std::string _redirectPath;
+   std::shared_ptr<TokenDetails> _pTokenDetails;
+ };
++
++struct ConnectionAuthorization {
++  CesiumAsync::Future<CesiumUtility::Result<Connection>> future;
++  std::function<void()> cancel;
++};
+ } // namespace CesiumIonClient
+diff --git a/CesiumIonClient/src/Connection.cpp b/CesiumIonClient/src/Connection.cpp
+index bb0ee5cf7..3a9bacb36 100644
+--- a/CesiumIonClient/src/Connection.cpp
++++ b/CesiumIonClient/src/Connection.cpp
+@@ -50,7 +50,7 @@ using namespace CesiumAsync;
+ using namespace CesiumIonClient;
+ using namespace CesiumUtility;
+ 
+-/*static*/ CesiumAsync::Future<Result<Connection>> Connection::authorize(
++/*static*/ ConnectionAuthorization Connection::authorizeCancelable(
+     const CesiumAsync::AsyncSystem& asyncSystem,
+     const std::shared_ptr<CesiumAsync::IAssetAccessor>& pAssetAccessor,
+     const std::string& friendlyApplicationName,
+@@ -63,19 +63,21 @@ using namespace CesiumUtility;
+     const std::string& ionAuthorizeUrl) {
+   const std::string tokenUrl = Uri::resolve(ionApiUrl, "oauth/token");
+ 
+-  return CesiumClientCommon::OAuth2PKCE::authorize(
+-             asyncSystem,
+-             pAssetAccessor,
+-             friendlyApplicationName,
+-             CesiumClientCommon::OAuth2ClientOptions{
+-                 std::to_string(clientID),
+-                 redirectPath,
+-                 std::nullopt,
+-                 true},
+-             scopes,
+-             std::move(openUrlCallback),
+-             tokenUrl,
+-             ionAuthorizeUrl)
++  CesiumClientCommon::OAuth2Authorization authorization =
++      CesiumClientCommon::OAuth2PKCE::authorizeCancelable(
++          asyncSystem,
++          pAssetAccessor,
++          friendlyApplicationName,
++          CesiumClientCommon::OAuth2ClientOptions{
++              std::to_string(clientID),
++              redirectPath,
++              std::nullopt,
++              true},
++          scopes,
++          std::move(openUrlCallback),
++          tokenUrl,
++          ionAuthorizeUrl);
++  Future<Result<Connection>> future = std::move(authorization.future)
+       .thenImmediately(
+           [asyncSystem,
+            pAssetAccessor,
+@@ -107,6 +109,33 @@ using namespace CesiumUtility;
+                   ionApiUrl));
+             }
+           });
++  return ConnectionAuthorization{
++      std::move(future), std::move(authorization.cancel)};
++}
++
++/*static*/ CesiumAsync::Future<Result<Connection>> Connection::authorize(
++    const CesiumAsync::AsyncSystem& asyncSystem,
++    const std::shared_ptr<CesiumAsync::IAssetAccessor>& pAssetAccessor,
++    const std::string& friendlyApplicationName,
++    int64_t clientID,
++    const std::string& redirectPath,
++    const std::vector<std::string>& scopes,
++    std::function<void(const std::string&)>&& openUrlCallback,
++    const CesiumIonClient::ApplicationData& appData,
++    const std::string& ionApiUrl,
++    const std::string& ionAuthorizeUrl) {
++  ConnectionAuthorization authorization = authorizeCancelable(
++      asyncSystem,
++      pAssetAccessor,
++      friendlyApplicationName,
++      clientID,
++      redirectPath,
++      scopes,
++      std::move(openUrlCallback),
++      appData,
++      ionApiUrl,
++      ionAuthorizeUrl);
++  return std::move(authorization.future);
+ }
+ 
+ Connection::Connection(
+diff --git a/CesiumNativeTests/CMakeLists.txt b/CesiumNativeTests/CMakeLists.txt
+index 4e5d800b6..bdcc78dc2 100644
+--- a/CesiumNativeTests/CMakeLists.txt
++++ b/CesiumNativeTests/CMakeLists.txt
+@@ -11,6 +11,7 @@ set(cesium_native_targets
+     Cesium3DTilesSelection
+     Cesium3DTilesWriter
+     CesiumAsync
++    CesiumClientCommon
+     CesiumGeometry
+     CesiumGeospatial
+     CesiumGltf
+-- 
+2.53.0
+

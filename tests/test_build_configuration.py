@@ -319,7 +319,9 @@ class BuildConfigurationTests(unittest.TestCase):
         self.assertIn('"debug_symbols=yes"', bridge)
         self.assertIn('"SConstruct.visual_studio"', wrapper)
         self.assertIn("<PlatformToolset>v145</PlatformToolset>", wrapper)
-        self.assertIn('if compiled_sources != 86:', wrapper)
+        self.assertIn("expected_sources = expected_compiled_sources()", wrapper)
+        self.assertIn("if project_sources != expected_sources:", wrapper)
+        self.assertNotRegex(wrapper, r"compiled_sources != \d+")
         self.assertIn(
             "Validate Visual Studio 2026 solution generation",
             workflow,

@@ -44,6 +44,8 @@ trap cleanup EXIT
 mkdir -p "${import_dir}"
 cp "${project_dir}/extension_list.cfg" "${import_dir}/extension_list.cfg"
 XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+  --script res://ion_editor_session_test.gd
+XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://url_utility_test.gd
 XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://lifecycle_streaming_test.gd

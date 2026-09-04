@@ -37,6 +37,7 @@
 #include "Godot/Nodes/CesiumGDCreditSystem.h"
 #include "Runtime/Public/Credits/CesiumCredit.h"
 #include "Runtime/Public/Networking/CesiumUrlUtility.h"
+#include "Runtime/Public/Ion/CesiumIonEditorSession.h"
 #include "Godot/Nodes/CesiumGDTileset.h"
 #include "Godot/Nodes/CesiumTileDebugVisualizer.h"
 #include "Godot/Nodes/CesiumTileExcluder.h"
@@ -145,6 +146,7 @@ void initialize_cesium_godot_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<CesiumCredit>();
 	ClassDB::register_class<CesiumGDCreditSystem>();
 	ClassDB::register_class<CesiumUrlUtility>();
+	ClassDB::register_class<CesiumIonEditorSession>();
 }
 
 void uninitialize_cesium_godot_module(ModuleInitializationLevel p_level) {
