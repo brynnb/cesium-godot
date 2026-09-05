@@ -1,6 +1,10 @@
 import copy
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 from tools.ci_cache import namespaces
 from tools.download_test_engine import engine_asset
@@ -33,6 +37,17 @@ class CacheKeysTest(unittest.TestCase):
     def test_engine_download_targets(self):
         self.assertEqual(engine_asset("4.6.3", "Linux")[0], "Godot_v4.6.3-stable_linux.x86_64.zip")
         self.assertEqual(engine_asset("4.7.2", "Windows")[1], "Godot_v4.7.2-stable_win64_console.exe")
+
+    def test_cache_environment_keeps_job_server_alive_until_flush(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "output"
+            environment = Path(temporary) / "environment"
+            subprocess.run([sys.executable, str(root / "tools/ci_cache.py"),
+                            "--platform", "windows", "--arch", "x64"],
+                           env={**os.environ, "GITHUB_OUTPUT": str(output),
+                                "GITHUB_ENV": str(environment)}, check=True)
+            self.assertIn("SCCACHE_IDLE_TIMEOUT=0\n", environment.read_text())
 
     def test_saves_precede_tests_and_clean_runs_skip_cache(self):
         workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/build-matrix.yml").read_text()

@@ -143,7 +143,9 @@ authoritative dependency checkout and never bypass bootstrap verification.
 Cache snapshots are saved immediately after build and locked-tree verification,
 before tests. Each run gets a new snapshot with prefix-based restoration so
 successful incremental entries are retained even if the subsequent tests fail.
-Sccache prints hit/miss statistics before snapshotting. Cold builds still compile
+The job disables sccache's idle timeout so it remains alive during the subsequent
+Godot/SCons compilation, then explicitly stops it to flush and report statistics.
+Cold builds still compile
 everything; warm-run savings must be measured from the hosted job timings.
 
 The build uploads its addon once. Isolated runtime/editor jobs test both Godot

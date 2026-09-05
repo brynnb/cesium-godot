@@ -41,6 +41,7 @@ def main():
         output = result.stdout + result.stderr
         (stage / (name + ".log")).write_text(output)
         if result.returncode or marker not in output or "SCRIPT ERROR:" in output or "ERROR:" in output:
+            print(output, flush=True)
             raise RuntimeError(f"{name} failed; inspect {stage / (name + '.log')}")
 
     run("editor", [args.godot, "--headless", "--editor", "--path", str(project), "--quit-after", "1200", "--", "--save-workflow"], "Cesium editor scene actions and serialization passed")

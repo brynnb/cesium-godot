@@ -39,3 +39,7 @@ if __name__ == "__main__":
         print(f"SCONS_CACHE={cache_root / 'scons'}", file=output)
         print(f"SCCACHE_DIR={cache_root / 'sccache'}", file=output)
         print("SCCACHE_CACHE_SIZE=2G", file=output)
+        # Native compilation finishes before the much longer Godot/SCons build.
+        # Keep this job-owned server alive until the explicit flush; otherwise
+        # its default idle timeout expires and --stop-server fails on Windows.
+        print("SCCACHE_IDLE_TIMEOUT=0", file=output)
