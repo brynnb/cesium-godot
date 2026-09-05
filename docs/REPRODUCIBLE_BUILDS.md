@@ -120,7 +120,7 @@ the Cesium dock and its primary controls, rather than merely parsing its
 scripts. Windows downloads Godot 4.6.3 and runs the credential-free
 lifecycle/material demo against the newly-built distributable addon, including
 local-file streaming and unload. The LibGodot/2dog xUnit compatibility fixture
-currently runs on Linux only.
+runs on Linux and Windows in separate jobs.
 Double-precision builds remain a supported explicit build configuration, but
 are not currently part of the hosted matrix.
 
@@ -128,3 +128,32 @@ The OS compiler and SDK are supplied by those versioned runner images. A
 runner-image refresh can still change patch-level system tools; the dependency
 lock and CI logs make that boundary explicit rather than claiming bit-for-bit
 reproducibility across unrelated host toolchains.
+
+### CI caching and parallel testing
+
+Normal builds use three independent caches: vcpkg binary packages, SCons derived
+outputs (including godot-cpp bindings), and sccache for Native compilation.
+The locked upstream SCons and Native projects already implement these hooks;
+we enable them through `SCONS_CACHE` and the pinned sccache executable.
+Each system validates its own content, command, or ABI signatures. A Native
+patch does not evict unrelated third-party packages. Namespace keys isolate
+target architecture, platform, runner image, and toolchain. Caches contain no
+authoritative dependency checkout and never bypass bootstrap verification.
+
+Cache snapshots are saved immediately after build and locked-tree verification,
+before tests. Each run gets a new snapshot with prefix-based restoration so
+successful incremental entries are retained even if the subsequent tests fail.
+Sccache prints hit/miss statistics before snapshotting. Cold builds still compile
+everything; warm-run savings must be measured from the hosted job timings.
+
+The build uploads its addon once. Isolated runtime/editor jobs test both Godot
+versions, and separate Linux/Windows jobs run LibGodot. All tests remain release
+requirements: artifacts existing is NOT proof that a release is ready. Require
+the **All platform builds and tests passed** aggregate job before publishing.
+The test jobs currently wait for the build matrix, then run concurrently; they
+do not share import directories, generated fixtures, or user data.
+
+Monday scheduled runs and manual dispatch with `clean_build: true` restore/write
+no build caches. Native compiler caching and vcpkg binary reuse are explicitly
+disabled for these fresh-runner builds. They run the same tests. This checks
+that cached outputs have not hidden a missing dependency or build assumption.

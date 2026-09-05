@@ -292,6 +292,13 @@ def configure_native(argumentsDict):
             "-DVCPKG_TRIPLET=%s" % triplet,
             "-DVCPKG_TARGET_TRIPLET=%s" % triplet,
         ]
+    if os.environ.get("CESIUM_GODOT_CLEAN_BUILD") == "true":
+        subprocess_environment["VCPKG_BINARY_SOURCES"] = "clear"
+        # Disable Native's automatic ccache/sccache discovery on clean CI runs.
+        cmake_arguments.extend([
+            "-DCMAKE_C_COMPILER_LAUNCHER=",
+            "-DCMAKE_CXX_COMPILER_LAUNCHER=",
+        ])
     if get_target_platform(argumentsDict) == PLATFORM_ANDROID:
         ndk_root = get_android_ndk_root()
         android_abi = {

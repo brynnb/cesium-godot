@@ -152,12 +152,12 @@ class BuildConfigurationTests(unittest.TestCase):
             "ubuntu-24.04",
             "windows-2022",
             "macos-15",
-            "Godot_v4.6.3-stable_linux.x86_64.zip",
-            "Godot_v4.7.2-stable_linux.x86_64.zip",
-            "Godot_v$version-stable_win64.exe.zip",
+            "version: '4.6.3'",
+            "version: '4.7.2'",
+            "tools/download_test_engine.py",
             "Test packaged addon on Godot 4.6.3 for Windows",
-            "Test Cesium for Godot on Godot 4.7.2",
-            "Test editor dock on Godot 4.7.2",
+            "Run full runtime suite",
+            "Run Linux editor and OAuth tests",
             "tests/run_editor_tests.sh",
             "tests/run_editor_tests.ps1",
             "tests/run_2dog_tests.ps1",
@@ -293,7 +293,7 @@ class BuildConfigurationTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('"CESIUM_GODOT_VCPKG_ROOT=$env:RUNNER_TEMP/cg-vcpkg"', workflow)
-        self.assertIn("runner.temp", workflow)
+        self.assertIn("$env:RUNNER_TEMP/cg-vcpkg", workflow)
         self.assertIn("cg-vcpkg", workflow)
 
     def test_posix_static_archives_use_a_response_file_when_needed(self) -> None:

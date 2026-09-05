@@ -4,6 +4,13 @@ name: Locked cross-platform builds
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      clean_build:
+        description: Build from scratch without restoring or writing compilation caches
+        type: boolean
+        default: false
+  schedule:
+    - cron: '23 6 * * 1'
 
 permissions:
   contents: read
@@ -25,7 +32,7 @@ jobs:
           python-version: 3.11.9
       - name: Run fast source checks
         run: |
-          python -m unittest -q tests.test_dependency_lock tests.test_build_configuration tests.test_bounded_test
+          python -m unittest -q tests.test_dependency_lock tests.test_build_configuration tests.test_bounded_test tests.test_ci_cache
           python tests/validate_source_layout.py
 
   build:
@@ -71,12 +78,6 @@ jobs:
         with:
           python-version: 3.11.9
 
-      - name: Set up .NET 10 for LibGodot compatibility test
-        if: matrix.platform == 'linux' || runner.os == 'Windows'
-        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
-        with:
-          dotnet-version: 10.0.x
-
       - name: Set up MSVC 2022
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
@@ -118,24 +119,43 @@ jobs:
           "CESIUM_GODOT_VCPKG_ROOT=$env:RUNNER_TEMP/cg-vcpkg" |
             Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Cache locked vcpkg packages
-        if: runner.os != 'Windows'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            build/dependencies/vcpkg
-            build/dependencies/vcpkg-installed
-            build/dependencies/native-build
-          key: vcpkg-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('dependencies.lock.json') }}
+      - name: Prepare independent cache namespaces
+        id: cache-keys
+        if: github.event_name != 'schedule' && inputs.clean_build != true
+        run: python tools/ci_cache.py --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
 
-      - name: Cache locked Windows vcpkg packages
-        if: runner.os == 'Windows'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - name: Restore third-party package binaries
+        id: vcpkg-cache
+        if: github.event_name != 'schedule' && inputs.clean_build != true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: |
-            ${{ runner.temp }}/cg-vcpkg
-            build/dependencies/native-build
-          key: vcpkg-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('dependencies.lock.json', 'CesiumBuildUtils.py') }}
+          path: build/ci-cache/vcpkg
+          key: packages-v2-${{ steps.cache-keys.outputs.vcpkg }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: packages-v2-${{ steps.cache-keys.outputs.vcpkg }}-
+
+      - name: Restore SCons compiled objects
+        id: scons-cache
+        if: github.event_name != 'schedule' && inputs.clean_build != true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: build/ci-cache/scons
+          key: scons-v2-${{ steps.cache-keys.outputs.compiler }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: scons-v2-${{ steps.cache-keys.outputs.compiler }}-
+
+      - name: Restore Cesium Native compiler cache
+        id: native-cache
+        if: github.event_name != 'schedule' && inputs.clean_build != true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: build/ci-cache/sccache
+          key: native-v2-${{ steps.cache-keys.outputs.compiler }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: native-v2-${{ steps.cache-keys.outputs.compiler }}-
+
+      - name: Install pinned Native compiler cache
+        if: github.event_name != 'schedule' && inputs.clean_build != true
+        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+        with:
+          version: v0.16.0
 
       - name: Verify arm64 macOS host
         if: runner.os == 'macOS'
@@ -143,6 +163,7 @@ jobs:
 
       - name: Build locked extension
         env:
+          CESIUM_GODOT_CLEAN_BUILD: ${{ (github.event_name == 'schedule' || inputs.clean_build == true) && 'true' || 'false' }}
           CESIUM_GODOT_NATIVE_TESTS: ${{ matrix.platform == 'linux' && 'true' || 'false' }}
         run: >-
           python tools/build_extension.py
@@ -159,9 +180,36 @@ jobs:
       - name: Verify locked dependency trees after build
         run: python tools/bootstrap_dependencies.py --verify-only --json
 
+      # Save only after a successful build and dependency verification, but
+      # BEFORE tests: a failing test must not discard successful compilation.
+      - name: Flush Native cache and report hits
+        if: github.event_name != 'schedule' && inputs.clean_build != true
+        run: sccache --stop-server
+
+      - name: Save third-party package binaries
+        if: github.event_name != 'schedule' && inputs.clean_build != true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: build/ci-cache/vcpkg
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+
+      - name: Save SCons compiled objects
+        if: github.event_name != 'schedule' && inputs.clean_build != true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: build/ci-cache/scons
+          key: ${{ steps.scons-cache.outputs.cache-primary-key }}
+
+      - name: Save Cesium Native compiler cache
+        if: github.event_name != 'schedule' && inputs.clean_build != true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: build/ci-cache/sccache
+          key: ${{ steps.native-cache.outputs.cache-primary-key }}
+
       - name: Run Cesium Native tests
         if: matrix.platform == 'linux'
-        run: ctest --test-dir build/dependencies/native-build/x64-linux-release --output-on-failure
+        run: ctest --test-dir build/dependencies/native-build/x64-linux-release --output-on-failure --timeout 180
 
       - name: Check Linux shared-library resolution
         if: matrix.platform == 'linux'
@@ -169,51 +217,6 @@ jobs:
           resolution="$(ldd -r addons/cesium_godot/lib/libCesiumGodot.linux.template_release.x86_64.so 2>&1)"
           printf '%s\n' "$resolution"
           ! grep -q 'undefined symbol:' <<< "$resolution"
-
-      - name: Download supported Godot test engines
-        if: matrix.platform == 'linux'
-        run: |
-          mkdir -p build/test-engines/godot-4.6.3
-          curl --fail --location --retry 3 --output build/test-engines/godot-4.6.3.zip https://github.com/godotengine/godot/releases/download/4.6.3-stable/Godot_v4.6.3-stable_linux.x86_64.zip
-          unzip -q build/test-engines/godot-4.6.3.zip -d build/test-engines/godot-4.6.3
-          mkdir -p build/test-engines/godot-4.7.2
-          curl --fail --location --retry 3 --output build/test-engines/godot-4.7.2.zip https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
-          unzip -q build/test-engines/godot-4.7.2.zip -d build/test-engines/godot-4.7.2
-
-      - name: Test Cesium for Godot on Godot 4.6.3
-        if: matrix.platform == 'linux'
-        env:
-          GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.6.3/Godot_v4.6.3-stable_linux.x86_64
-        run: tests/run_godot_tests.sh
-
-      - name: Test editor dock on Godot 4.6.3
-        if: matrix.platform == 'linux'
-        env:
-          GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.6.3/Godot_v4.6.3-stable_linux.x86_64
-        run: tests/run_editor_tests.sh
-
-      - name: Test Cesium for Godot on Godot 4.7.2
-        if: matrix.platform == 'linux'
-        env:
-          GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.7.2/Godot_v4.7.2-stable_linux.x86_64
-        run: tests/run_godot_tests.sh
-
-      - name: Test editor dock on Godot 4.7.2
-        if: matrix.platform == 'linux'
-        env:
-          GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.7.2/Godot_v4.7.2-stable_linux.x86_64
-        run: tests/run_editor_tests.sh
-
-      - name: Test ZIP install and saved editor scene on Linux
-        if: matrix.platform == 'linux'
-        run: |
-          for version in 4.6.3 4.7.2; do
-            python tests/run_packaged_editor_test.py --godot "$PWD/build/test-engines/godot-$version/Godot_v$version-stable_linux.x86_64"
-          done
-
-      - name: Test C# facade and streaming through LibGodot
-        if: matrix.platform == 'linux'
-        run: tests/run_2dog_tests.sh
 
       - name: Verify Android ARM64 shared library
         if: matrix.platform == 'android'
@@ -223,48 +226,7 @@ jobs:
           grep -q 'Machine:.*AArch64' build/android-elf-header.txt
           readelf -d "$library" | tee build/android-dynamic-section.txt
 
-      - name: Download supported Godot test engines for Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          foreach ($version in @("4.6.3", "4.7.2")) {
-            $archive = "build/test-engines/godot-$version-windows.zip"
-            $destination = "build/test-engines/godot-$version-windows"
-            New-Item -ItemType Directory -Force -Path $destination | Out-Null
-            Invoke-WebRequest `
-              -Uri "https://github.com/godotengine/godot/releases/download/$version-stable/Godot_v$version-stable_win64.exe.zip" `
-              -OutFile $archive
-            Expand-Archive -Path $archive -DestinationPath $destination
-          }
-
-      - name: Test packaged addon on Godot 4.6.3 for Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $godot = Resolve-Path "build/test-engines/godot-4.6.3-windows/Godot_v4.6.3-stable_win64_console.exe"
-          & $godot --headless --path examples/lifecycle_material_demo -- --smoke-test
-          if ($LASTEXITCODE -ne 0) {
-            throw "Windows lifecycle/material smoke test failed with exit code $LASTEXITCODE"
-          }
-
-      - name: Test editor dock on supported Godot versions for Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          foreach ($version in @("4.6.3", "4.7.2")) {
-            $godot = Resolve-Path "build/test-engines/godot-$version-windows/Godot_v$version-stable_win64_console.exe"
-            ./tests/run_editor_tests.ps1 -GodotBin $godot
-            python tests/run_packaged_editor_test.py --godot $godot
-            if ($LASTEXITCODE -ne 0) { throw "Packaged editor workflow failed" }
-          }
-
-      - name: Test C# facade and streaming through LibGodot on Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        timeout-minutes: 10
-        run: ./tests/run_2dog_tests.ps1
-
-      - name: Upload distributable addon
+      - name: Upload distributable addon for downstream testing
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.artifact }}
@@ -273,3 +235,99 @@ jobs:
             !addons/cesium_godot/**/*.uid
             !addons/cesium_godot/**/*.import
           if-no-files-found: error
+
+  runtime:
+    name: ${{ matrix.platform }} ${{ matrix.suite }} Godot ${{ matrix.version }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-24.04, platform: linux, suite: runtime, version: '4.6.3'}
+          - {os: ubuntu-24.04, platform: linux, suite: runtime, version: '4.7.2'}
+          - {os: ubuntu-24.04, platform: linux, suite: editor, version: '4.6.3'}
+          - {os: ubuntu-24.04, platform: linux, suite: editor, version: '4.7.2'}
+          - {os: windows-2022, platform: windows, suite: editor, version: '4.6.3'}
+          - {os: windows-2022, platform: windows, suite: editor, version: '4.7.2'}
+    steps:
+      - name: Checkout same revision as build
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Python 3.11.9
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: 3.11.9
+      - name: Download built addon
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: cesium-godot-${{ matrix.platform }}-x86_64
+          path: addons/cesium_godot
+      - name: Recover locked source fixtures without recompiling
+        if: matrix.suite == 'runtime'
+        run: python tools/bootstrap_dependencies.py --json
+      - name: Download supported Godot test engine
+        run: python tools/download_test_engine.py --version ${{ matrix.version }}
+      - name: Run full runtime suite
+        if: matrix.suite == 'runtime'
+        run: tests/run_godot_tests.sh
+      - name: Run Linux editor and OAuth tests
+        if: matrix.platform == 'linux' && matrix.suite == 'editor'
+        run: tests/run_editor_tests.sh
+      - name: Test packaged addon on Godot 4.6.3 for Windows
+        if: matrix.platform == 'windows' && matrix.version == '4.6.3'
+        shell: pwsh
+        run: |
+          python tests/run_bounded_test.py $env:GODOT_BIN --headless --path examples/lifecycle_material_demo -- --smoke-test
+          if ($LASTEXITCODE -ne 0) { throw "Windows lifecycle/material smoke test failed" }
+      - name: Run Windows editor tests
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: ./tests/run_editor_tests.ps1 -GodotBin $env:GODOT_BIN
+      - name: Test ZIP installation and saved scene
+        if: matrix.suite == 'editor'
+        shell: bash
+        run: python tests/run_packaged_editor_test.py --godot "$GODOT_BIN"
+
+  managed:
+    name: ${{ matrix.platform }} LibGodot C# tests
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-24.04, platform: linux}
+          - {os: windows-2022, platform: windows}
+    steps:
+      - name: Checkout same revision as build
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Download built addon
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: cesium-godot-${{ matrix.platform }}-x86_64
+          path: addons/cesium_godot
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Run Linux LibGodot tests
+        if: matrix.platform == 'linux'
+        run: tests/run_2dog_tests.sh
+      - name: Run Windows LibGodot tests
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: ./tests/run_2dog_tests.ps1
+
+  validation:
+    name: All platform builds and tests passed
+    if: always()
+    needs: [build, runtime, managed]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every build and test job
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 -c 'import json,os; results=json.loads(os.environ["RESULTS"]); assert all(v["result"] == "success" for v in results.values()), results'

@@ -144,6 +144,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
             "Android arm64, and Android x86_64"
         )
     environment = os.environ.copy()
+    if environment.get("CESIUM_GODOT_CLEAN_BUILD") == "true":
+        environment.pop("SCONS_CACHE", None)
+        environment["VCPKG_BINARY_SOURCES"] = "clear"
     environment["CESIUM_GODOT_BUILD_JOBS"] = str(args.jobs)
     lock = json.loads((ROOT / "dependencies.lock.json").read_text(encoding="utf-8"))
     if args.platform == "android":
