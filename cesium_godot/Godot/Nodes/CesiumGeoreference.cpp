@@ -79,8 +79,7 @@ void remove_object(std::vector<ObjectID>& objects, T* object) {
 }
 
 CesiumGeoreference::CesiumGeoreference() {
-	this->m_ellipsoid.instantiate();
-	const glm::dvec3 origin = this->m_ellipsoid->get_native_ellipsoid()
+	const glm::dvec3 origin = this->get_native_ellipsoid()
 		.cartographicToCartesian(CesiumGeospatial::Cartographic(
 			Math::deg_to_rad(this->m_longitude),
 			Math::deg_to_rad(this->m_latitude),
@@ -96,6 +95,7 @@ CesiumGeoreference::~CesiumGeoreference() {
 }
 
 void CesiumGeoreference::_enter_tree() {
+	if (this->m_ellipsoid.is_null()) this->m_ellipsoid.instantiate();
 	this->m_insideTree = true;
 	this->m_initialOriginTransform = this->get_global_transform();
 	this->m_originalEcefPosition = this->m_ecefPosition;
@@ -382,7 +382,9 @@ CesiumGeoreference::get_coordinate_system() const {
 }
 
 const CesiumGeospatial::Ellipsoid& CesiumGeoreference::get_native_ellipsoid() const {
-	return this->m_ellipsoid->get_native_ellipsoid();
+	return this->m_ellipsoid.is_valid()
+		? this->m_ellipsoid->get_native_ellipsoid()
+		: CesiumGeospatial::Ellipsoid::WGS84;
 }
 
 const glm::dvec3& CesiumGeoreference::get_ecef_position() const {

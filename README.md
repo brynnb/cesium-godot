@@ -144,6 +144,10 @@ tests/run_godot_tests.sh
 
 The test suite uses local fixtures and does not require Cesium ion credentials.
 CI runs it with the same extension binary on official Godot 4.6.3 and 4.7.2.
+The basic [editor workflow](docs/EDITOR_WORKFLOW.md) supports local/URL tileset
+insertion, catalog and ion search, undo/redo, ordinary-camera setup, runtime-token
+configuration, and opt-in selected-tileset preview/status.
+
 The separate editor smoke test enables the packaged plugin and verifies that
 its Cesium dock and primary controls actually register:
 

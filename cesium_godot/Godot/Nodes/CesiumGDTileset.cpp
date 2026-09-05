@@ -530,11 +530,6 @@ Cesium3DTileset::Cesium3DTileset()
 	this->m_runtimeStatistics =
 		std::make_shared<CesiumTilesetRuntimeStatistics>();
 	this->m_loadFailureQueue = std::make_shared<CesiumLoadFailureQueue>();
-	this->m_pointCloudShading.instantiate();
-	this->m_pointCloudShading->connect(
-		"changed",
-		Callable(this, "_on_point_cloud_shading_changed")
-	);
 	this->m_tilesetConfig->options.contentOptions.applyTextureTransform = false;
 	const uint32_t hardwareThreads = std::thread::hardware_concurrency();
 	this->m_workerThreadCount = std::clamp<uint32_t>(
@@ -5610,7 +5605,8 @@ void Cesium3DTileset::_ready() {
 	Node* root = this->get_tree()->get_root();
 	Camera3D* foundCamera = CesiumGodot::AssetManipulation::find_georef_cam(root);
 	if (foundCamera == nullptr) {
-		WARN_PRINT("Could not find a Cesium Dynamic camera, try adding it manually in the Cesium Ion Panel");
+		// This only wires the optional controller's tileset list. Ordinary
+		// Camera3D consumers can drive selection directly or via a camera manager.
 		return;
 	}
 	CesiumGodot::AssetManipulation::update_camera_tilesets(foundCamera);
@@ -5637,11 +5633,16 @@ CesiumGeoreference* Cesium3DTileset::get_georeference_node() const {
 }
 
 void Cesium3DTileset::_enter_tree() {
+	if (this->m_pointCloudShading.is_null()) {
+		this->set_point_cloud_shading(Ref<CesiumPointCloudShading>());
+	}
 	if (!is_editor_mode()) {
 		// TODO: Replace this, it's bad code lol
 		this->is_georeferenced(&this->m_georeference);
 		return;
 	}
+	// Respect explicitly authored scene hierarchies (including editor undo/redo).
+	if (this->is_georeferenced(&this->m_georeference)) return;
 	CesiumGeoreference* globe = CesiumGodot::AssetManipulation::find_or_create_globe(this);
 	if (globe == nullptr) {
 		return;

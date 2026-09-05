@@ -50,6 +50,10 @@ func initialize_fields(
 	
 	self.specific_token_name = self.find_sibling(self.specific_token_check, "TokenName") as TextEdit
 	self.specific_token_name.text = self.default_config.accessToken
+	var notice := Label.new()
+	notice.text = "Runtime asset token: saved in project.godot and included in exports.\nUse a read-only, asset-scoped token, never your editor-session token."
+	notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	configuration_container.add_child(notice)
 	
 	self.existing_token_check.toggled.connect(on_existing_token_check)
 	self.specific_token_check.toggled.connect(on_specific_token_check)
@@ -130,7 +134,12 @@ func apply_or_create_token() -> void:
 			OS.alert("Error creating the new token, please try to sign in manually to Cesium Ion", "Error!")
 			return
 		self.default_config.accessToken = createdToken
-	OS.alert("Token changed in configuration, you can now close this window...", "Changes applied!")
+	ProjectSettings.set_setting("cesium/runtime/ion_access_token", self.default_config.accessToken)
+	var error := ProjectSettings.save()
+	if error != OK:
+		OS.alert("Could not save runtime asset token: " + error_string(error), "Save failed")
+		return
+	OS.alert("Runtime asset token saved to project.godot. Editor login remains in secure session storage.", "Changes applied")
 
 
 func create_new_token() -> String:
@@ -138,10 +147,7 @@ func create_new_token() -> String:
 		push_error("Sign in to Cesium ion before creating an account token")
 		return ""
 	var scopes := PackedStringArray([
-		"assets:list",
 		"assets:read",
-		"geocode",
-		"tokens:read",
 	])
 	self.ion_session.create_token(self.new_token_name.text, scopes)
 	var completion: Array = await self.ion_session.operation_completed

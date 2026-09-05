@@ -204,6 +204,13 @@ jobs:
           GODOT_BIN: ${{ github.workspace }}/build/test-engines/godot-4.7.2/Godot_v4.7.2-stable_linux.x86_64
         run: tests/run_editor_tests.sh
 
+      - name: Test ZIP install and saved editor scene on Linux
+        if: matrix.platform == 'linux'
+        run: |
+          for version in 4.6.3 4.7.2; do
+            python tests/run_packaged_editor_test.py --godot "$PWD/build/test-engines/godot-$version/Godot_v$version-stable_linux.x86_64"
+          done
+
       - name: Test C# facade and streaming through LibGodot
         if: matrix.platform == 'linux'
         run: tests/run_2dog_tests.sh
@@ -247,6 +254,8 @@ jobs:
           foreach ($version in @("4.6.3", "4.7.2")) {
             $godot = Resolve-Path "build/test-engines/godot-$version-windows/Godot_v$version-stable_win64_console.exe"
             ./tests/run_editor_tests.ps1 -GodotBin $godot
+            python tests/run_packaged_editor_test.py --godot $godot
+            if ($LASTEXITCODE -ne 0) { throw "Packaged editor workflow failed" }
           }
 
       - name: Test C# facade and streaming through LibGodot on Windows

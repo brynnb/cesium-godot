@@ -20,6 +20,8 @@ if (Test-Path $projectDir) {
 }
 New-Item -ItemType Directory -Force (Join-Path $projectDir "addons") | Out-Null
 Copy-Item (Join-Path $fixtureSource "project.godot") $projectDir
+Copy-Item (Join-Path $fixtureSource "camera_scene.tscn") $projectDir
+Copy-Item (Join-Path $fixtureSource "camera_scene.gd") $projectDir
 Copy-Item -Recurse -Force `
   (Join-Path $fixtureSource "addons/editor_smoke_probe") `
   (Join-Path $projectDir "addons/editor_smoke_probe")
@@ -42,9 +44,20 @@ if ($status -ne 0) {
 if (-not $log.Contains($successMarker)) {
   throw "Cesium editor dock registration test did not report success"
 }
+if ($log.Contains("SCRIPT ERROR:")) {
+  throw "Cesium editor plugin reported a script error"
+}
 if ($log.Contains("Invalid access to property or key 'items'")) {
   throw "Cesium editor plugin tried to consume an invalid ion response"
 }
 if ($log.Contains("Failed loading resource: res://addons/cesium_godot/resources/icons")) {
   throw "Cesium editor dock still depends on imported icon resources"
+}
+
+$cameraOutput = & $GodotBin --headless --path $projectDir --quit-after 6000 -- --smoke-test 2>&1
+$cameraStatus = $LASTEXITCODE
+$cameraLog = $cameraOutput -join "`n"
+Write-Output $cameraLog
+if ($cameraStatus -ne 0 -or -not $cameraLog.Contains("Ordinary Camera3D streaming fixture passed")) {
+  throw "Ordinary Camera3D streaming fixture failed"
 }

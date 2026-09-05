@@ -35,6 +35,7 @@ public:
 
 	CesiumGeoJsonDocumentRasterOverlay();
 	~CesiumGeoJsonDocumentRasterOverlay() override;
+	void _enter_tree() override;
 
 	void set_source(int32_t source);
 	int32_t get_source() const;

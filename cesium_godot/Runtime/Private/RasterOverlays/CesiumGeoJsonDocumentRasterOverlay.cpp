@@ -39,7 +39,12 @@ DocumentResult rejected_document(std::exception&& exception) {
 } // namespace
 
 CesiumGeoJsonDocumentRasterOverlay::CesiumGeoJsonDocumentRasterOverlay() {
-	this->m_defaultStyle.instantiate();
+}
+
+void CesiumGeoJsonDocumentRasterOverlay::_enter_tree() {
+	if (this->m_defaultStyle.is_null()) {
+		this->m_defaultStyle.instantiate();
+	}
 	this->connect_style();
 }
 

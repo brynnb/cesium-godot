@@ -3,8 +3,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 godot_bin="${GODOT_BIN:-godot4}"
-project_dir="${repo_root}/tests/godot"
 test_dir="$(mktemp -d --tmpdir=/var/tmp cesium-ion-e2e.XXXXXX)"
+project_dir="${test_dir}/project"
 server_pid=""
 
 cleanup() {
@@ -29,16 +29,19 @@ if [[ ! -s "${test_dir}/port" ]]; then
 	exit 1
 fi
 
-mkdir -p "${test_dir}/godot-data" "${project_dir}/.godot"
-cp "${project_dir}/extension_list.cfg" "${project_dir}/.godot/extension_list.cfg"
+mkdir -p "${test_dir}/godot-data" "${project_dir}/.godot" "${project_dir}/addons/ion_e2e"
+cp "${repo_root}/tests/ion-editor/project.godot" "${project_dir}/project.godot"
+cp "${repo_root}/tests/ion-editor/plugin.cfg" "${project_dir}/addons/ion_e2e/plugin.cfg"
+cp "${repo_root}/tests/godot/ion_editor_session_e2e_test.gd" "${project_dir}/addons/ion_e2e/"
+ln -s "${repo_root}/addons/cesium_godot" "${project_dir}/addons/cesium_godot"
+cp "${repo_root}/tests/godot-editor/extension_list.cfg" "${project_dir}/.godot/extension_list.cfg"
 port="$(<"${test_dir}/port")"
 browser="python3 ${repo_root}/tests/ion_editor_e2e_fixture.py browse %s"
 set +e
 XDG_DATA_HOME="${test_dir}/godot-data" \
 	BROWSER="${browser}" \
 	CESIUM_ION_FIXTURE_URL="http://127.0.0.1:${port}/" \
-	"${godot_bin}" --headless --editor --path "${project_dir}" \
-		--script res://ion_editor_session_e2e_test.gd
+	"${godot_bin}" --headless --editor --path "${project_dir}"
 godot_status=$?
 set -e
 if [[ ${godot_status} -ne 0 ]]; then

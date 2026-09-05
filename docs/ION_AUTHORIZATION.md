@@ -11,6 +11,13 @@ Cesium for Godot keeps two kinds of credentials deliberately separate:
   author. It remains explicit project/runtime configuration. Packaged games do
   not inherit the editor user's account login.
 
+The Token dialog explicitly saves the selected **runtime** token to
+`cesium/runtime/ion_access_token` in `project.godot`. This is plaintext application
+configuration included in exports, not secret session storage. Use a read-only
+token limited to the application's assets. Per-tileset tokens still take priority.
+Never paste a private editor-session credential into this field. Newly created
+runtime tokens request only `assets:read`; narrow their asset access in ion.
+
 The editor access and refresh tokens are stored in Windows Credential Manager,
 macOS Keychain, or the Linux Secret Service. If the platform vault is missing
 or unavailable, login still works for the current editor process but is not
@@ -21,6 +28,12 @@ Disabling the plugin, canceling sign-in, or closing the editor cancels pending
 network work and closes Cesium Native's temporary authorization listener. The
 downstream Native patch that exposes this cancellation is recorded and locked
 in `dependencies/cesium-native-patches`.
+
+The dock is initialized before the session enters the scene tree, because
+session restoration can emit state changes synchronously. Asset-list refreshes
+free their replaced controls and ignore stale completions after teardown.
+The editor tests exercise an ordinary Camera3D, explicit dock disposal, and
+OAuth through a real EditorPlugin lifecycle (not an alternate SceneTree).
 
 The Linux editor test suite runs the real GDExtension against a local ion/OAuth
 fixture. It validates application discovery, the PKCE challenge and state-bound

@@ -28,7 +28,7 @@
       "ref": "v0.63.0",
       "base_commit": "b4137763914820b01a42b52ee886a55b036cd6ac",
       "base_tree": "453e4549732ba163ac8ad05c884fb5cae2fe556d",
-      "patched_tree": "5e994a5287743bab2bb12d6590f5fc4524fbb02d",
+      "patched_tree": "80f73e03e1c0b52e302dcccc47267435c8743bbe",
       "patches": [
         {
           "path": "dependencies/cesium-native-patches/0001-Resume-renderer-preparation-across-frames.patch",
@@ -89,6 +89,14 @@
         {
           "path": "dependencies/cesium-native-patches/0015-Make-ion-OAuth-authorization-cancelable.patch",
           "sha256": "15b6f13a3137299b5c1816a63aca3ee33fb5f082f7da5baee8a7b48286aad94d"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0016-Preserve-ion-accessor-identity-with-per-tile-cancellation.patch",
+          "sha256": "0b0ab51af6846cc837f4414a8196000fe9abeda22489e463433fc51ae3de4b23"
+        },
+        {
+          "path": "dependencies/cesium-native-patches/0017-Make-OAuth-listener-cancellation-single-owner.patch",
+          "sha256": "cb2444bfea2b60766ca3aee404a40ff285181e0343d49397ccc86d80617dbba7"
         }
       ]
     },

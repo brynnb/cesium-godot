@@ -54,6 +54,8 @@ XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --
 XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://geospatial_foundation_test.gd
 XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+  --script res://editor_resource_defaults_test.gd
+XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://geojson_document_test.gd
 XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://fly_to_test.gd

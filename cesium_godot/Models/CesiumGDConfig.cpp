@@ -1,6 +1,7 @@
 #include "CesiumGDConfig.h"
 #include "Utils/AssetManipulation.h"
 #include "godot_cpp/core/class_db.hpp"
+#include "godot_cpp/classes/project_settings.hpp"
 
 void CesiumGDConfig::set_access_token(const String& accessToken)
 {
@@ -25,6 +26,10 @@ CesiumGDConfig* CesiumGDConfig::get_singleton(Node* baseNode) {
 }
 
 void CesiumGDConfig::_enter_tree() {
+	if (m_accessToken.is_empty()) {
+		m_accessToken = ProjectSettings::get_singleton()->get_setting(
+			"cesium/runtime/ion_access_token", String());
+	}
 }
 
 void CesiumGDConfig::_bind_methods()

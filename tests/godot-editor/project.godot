@@ -1,9 +1,18 @@
-; Minimal project that verifies the distributable editor plugin itself.
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
 config_version=5
 
 [application]
 
 config/name="Cesium for Godot Editor Smoke Test"
+run/main_scene="res://camera_scene.tscn"
+config/features=PackedStringArray("4.6")
 
 [editor_plugins]
 

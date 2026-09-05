@@ -1,0 +1,114 @@
+From c4b9e3ecc34b7fc8e47a4561214a158bd330bae5 Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Sat, 5 Sep 2026 11:32:48 -0700
+Subject: [PATCH] Make OAuth listener cancellation single-owner and
+ startup-safe
+
+---
+ CesiumClientCommon/src/OAuth2PKCE.cpp      | 20 ++++++++++++++------
+ CesiumClientCommon/test/TestOAuth2PKCE.cpp | 20 +++++++++++++++++---
+ 2 files changed, 31 insertions(+), 9 deletions(-)
+
+diff --git a/CesiumClientCommon/src/OAuth2PKCE.cpp b/CesiumClientCommon/src/OAuth2PKCE.cpp
+index b038861b6..f4c71f58a 100644
+--- a/CesiumClientCommon/src/OAuth2PKCE.cpp
++++ b/CesiumClientCommon/src/OAuth2PKCE.cpp
+@@ -267,7 +267,7 @@ OAuth2Authorization OAuth2PKCE::authorizeCancelable(
+ 
+   pServer->Get(
+       clientOptions.redirectPath,
+-      [authorizationState,
++      [weakState = std::weak_ptr<AuthorizationState>(authorizationState),
+        asyncSystem,
+        pAssetAccessor,
+        friendlyApplicationName,
+@@ -278,12 +278,15 @@ OAuth2Authorization OAuth2PKCE::authorizeCancelable(
+        codeVerifier](
+           const httplib::Request& request,
+           httplib::Response& response) {
+-        authorizationState->pServer->stop();
+-        if (!authorizationState->beginCompletion()) {
++        auto authorizationState = weakState.lock();
++        if (!authorizationState || !authorizationState->beginCompletion()) {
+           response.status = 410;
+           response.set_content("Authorization was canceled.", "text/plain");
+           return;
+         }
++        // Only the completion winner may stop httplib. Concurrent/repeated
++        // stop() calls can observe a closed socket while is_running is true.
++        authorizationState->pServer->stop();
+ 
+         std::string error = request.get_param_value("error");
+         std::string errorDescription =
+@@ -363,17 +366,22 @@ OAuth2Authorization OAuth2PKCE::authorizeCancelable(
+         }
+       });
+ 
+-  std::thread([pServer, authorizeUrl]() {
+-    pServer->listen_after_bind();
++  std::thread([authorizationState]() {
++    // Keep state alive for the legacy future-only API, without a cycle from
++    // server -> handler -> state -> server.
++    authorizationState->pServer->listen_after_bind();
+   }).detach();
+ 
++  // stop() does nothing before httplib starts listening. Do not expose the
++  // cancellation handle (or browser callback) until the listener is ready.
++  pServer->wait_until_ready();
+   openUrlCallback(authorizeUrl);
+ 
+   return OAuth2Authorization{
+       promise.getFuture(),
+       [authorizationState]() {
+-        authorizationState->pServer->stop();
+         if (authorizationState->beginCompletion()) {
++          authorizationState->pServer->stop();
+           authorizationState->promise.resolve(Result<OAuth2TokenResponse>(ErrorList::error(
+               "OAuth2 authorization was canceled.")));
+         }
+diff --git a/CesiumClientCommon/test/TestOAuth2PKCE.cpp b/CesiumClientCommon/test/TestOAuth2PKCE.cpp
+index 077cea872..aa7e60185 100644
+--- a/CesiumClientCommon/test/TestOAuth2PKCE.cpp
++++ b/CesiumClientCommon/test/TestOAuth2PKCE.cpp
+@@ -7,6 +7,7 @@
+ 
+ #include <memory>
+ #include <string>
++#include <thread>
+ #include <vector>
+ 
+ using namespace CesiumAsync;
+@@ -37,14 +38,27 @@ TEST_CASE("OAuth2PKCE authorization can be canceled") {
+   REQUIRE(portEnd != std::string::npos);
+   const int port = std::stoi(openedUrl.substr(portStart, portEnd - portStart));
+ 
+-  authorization.cancel();
+-  authorization.cancel();
++  SUBCASE("repeated cancellation") {
++    authorization.cancel();
++    authorization.cancel();
++  }
++  SUBCASE("concurrent cancellation") {
++    std::thread first([&]() { authorization.cancel(); });
++    std::thread second([&]() { authorization.cancel(); });
++    first.join();
++    second.join();
++    authorization.cancel();
++  }
+   auto result = std::move(authorization.future).wait();
+   CHECK_FALSE(result.value.has_value());
+   REQUIRE(result.errors.errors.size() == 1);
+   CHECK(result.errors.errors[0].find("canceled") != std::string::npos);
+ 
+   httplib::Server replacementServer;
+-  CHECK(replacementServer.bind_to_port("127.0.0.1", port));
++  REQUIRE(replacementServer.bind_to_port("127.0.0.1", port));
++  // httplib stop() only closes a running listener, not a merely bound socket.
++  std::thread replacementThread([&]() { replacementServer.listen_after_bind(); });
++  replacementServer.wait_until_ready();
+   replacementServer.stop();
++  replacementThread.join();
+ }
+-- 
+2.53.0
+

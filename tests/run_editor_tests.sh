@@ -21,6 +21,14 @@ trap cleanup EXIT
 mkdir -p "${import_dir}" "${test_data_dir}"
 cp "${project_dir}/extension_list.cfg" "${import_dir}/extension_list.cfg"
 output_file="$(mktemp --tmpdir="${test_data_dir}" editor-smoke.XXXXXX.log)"
+camera_output="${test_data_dir}/camera.log"
+XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless --path "${project_dir}" \
+  --quit-after 6000 -- --smoke-test >"${camera_output}" 2>&1
+cat "${camera_output}"
+if ! grep -Fq "Ordinary Camera3D streaming fixture passed" "${camera_output}"; then
+  echo "Ordinary Camera3D fixture failed" >&2
+  exit 1
+fi
 
 set +e
 XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless --editor \
@@ -36,6 +44,10 @@ if [[ ${status} -ne 0 ]]; then
 fi
 if ! grep -Fq "${success_marker}" "${output_file}"; then
   echo "Cesium editor dock registration test did not report success" >&2
+  exit 1
+fi
+if grep -Fq "SCRIPT ERROR:" "${output_file}"; then
+  echo "Cesium editor plugin reported a script error" >&2
   exit 1
 fi
 if grep -Fq "Invalid access to property or key 'items'" "${output_file}"; then

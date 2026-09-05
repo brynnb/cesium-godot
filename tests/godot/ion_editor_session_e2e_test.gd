@@ -1,11 +1,12 @@
-extends SceneTree
+@tool
+extends EditorPlugin
 
 const TIMEOUT_MSEC := 15000
 
 var completions: Array[Array] = []
 
 
-func _initialize() -> void:
+func _enter_tree() -> void:
 	_run.call_deferred()
 
 
@@ -20,7 +21,7 @@ func _run() -> void:
 	session.operation_completed.connect(func(operation, success, payload, error):
 		completions.append([operation, success, payload, error])
 	)
-	root.add_child(session)
+	add_child(session)
 	session.connect_to_ion()
 	if not await _wait_for(func(): return session.is_connected):
 		_fail("OAuth connection timed out: %s" % session.error_message)
@@ -51,7 +52,7 @@ func _run() -> void:
 		var resumed := CesiumIonEditorSession.new()
 		resumed.api_url = fixture_url
 		resumed.server_url = fixture_url
-		root.add_child(resumed)
+		add_child(resumed)
 		if not await _wait_for(func(): return resumed.is_connected):
 			_fail(
 				"The OS-vault session did not resume: state=%s available=%s error=%s storage_error=%s"
@@ -69,7 +70,8 @@ func _run() -> void:
 	else:
 		print("Secure credential vault unavailable; persistence check skipped")
 	print("Cesium ion editor authorization E2E test passed")
-	quit(0)
+	await get_tree().process_frame
+	get_tree().quit(0)
 
 
 func _completion(operation: String) -> Array:
@@ -78,7 +80,7 @@ func _completion(operation: String) -> Array:
 		for index in completions.size():
 			if completions[index][0] == operation:
 				return completions.pop_at(index)
-		await process_frame
+		await get_tree().process_frame
 	return [operation, false, null, "timed out"]
 
 
@@ -87,10 +89,10 @@ func _wait_for(predicate: Callable) -> bool:
 	while Time.get_ticks_msec() < deadline:
 		if predicate.call():
 			return true
-		await process_frame
+		await get_tree().process_frame
 	return false
 
 
 func _fail(message: String) -> void:
 	push_error(message)
-	quit(1)
+	get_tree().quit(1)

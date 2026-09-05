@@ -48,6 +48,16 @@ Native APIs are not a supported compatibility target.
 - Make Cesium Native's PKCE/state-validated ion authorization operation
   explicitly cancelable so disabling the editor plugin or canceling sign-in
   always closes its temporary loopback listener.
+- Start the OAuth listener before exposing cancellation, and let only the
+  completion winner stop it. Repeated/concurrent cancellation is safe, releases
+  the loopback port, and does not retain a server-handler ownership cycle.
+- Preserve the stable accessor identity required by the ion tileset loader,
+  while binding each tile's cancellation above the shared ion authorization
+  accessor. Forward request options through authorization and retries, without
+  tying a shared token refresh to the first tile's cancellation lifetime.
+  The regression test loads two tiles with distinct cancellation tokens and
+  verifies that canceling the first does not contaminate the second. This fixes
+  ion child tiles being rejected locally with no HTTP response.
 
 Two changes formerly carried downstream are present upstream in v0.63.0 and
 are deliberately no longer patched here: external glTF buffers resolve before
@@ -69,7 +79,7 @@ while retaining the standalone exception contract.
 
 ## Durable patch and build contract
 
-These changes no longer depend on the development-only checkout path. The 15
+These changes no longer depend on the development-only checkout path. The 17
 patches are preserved as an ordered, SHA-256-locked mail patch series under
 `dependencies/cesium-native-patches`. The bootstrap starts from the exact
 v0.63.0 commit, applies that series, and requires the final Git tree recorded

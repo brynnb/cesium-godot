@@ -1,0 +1,7 @@
+config_version=5
+[application]
+config/name="Cesium ion authorization fixture"
+[editor_plugins]
+enabled=PackedStringArray("res://addons/ion_e2e/plugin.cfg")
+[rendering]
+renderer/rendering_method="gl_compatibility"

@@ -36,6 +36,9 @@ var inspector_plugin: EditorInspectorPlugin = null
 var token_panel: Popup = null
 
 var token_panel_data : TokenPanelData = null
+var asset_request_generation := 0
+var scene_actions: RefCounted
+var workspace: VBoxContainer
 
 func _enter_tree() -> void:
 	self.set_process(false)
@@ -46,7 +49,6 @@ func _enter_tree() -> void:
 	self.ion_session.name = "CesiumIonEditorSession"
 	self.ion_session.state_changed.connect(_on_ion_session_state_changed)
 	self.ion_session.authorization_failed.connect(_on_ion_authorization_failed)
-	self.add_child(self.ion_session)
 	self.cesium_builder_node = CesiumGDAssetBuilder.new()
 	self.add_child(self.cesium_builder_node)
 	self.token_panel = self.token_panel_popup.instantiate()
@@ -57,13 +59,36 @@ func _enter_tree() -> void:
 	self.add_inspector_plugin(self.inspector_plugin)
 	print("Enabled Cesium plugin")
 	self.init_buttons()
+	scene_actions = preload("res://addons/cesium_godot/editor/editor_scene_actions.gd").new(self)
+	workspace = preload("res://addons/cesium_godot/editor/editor_workspace.gd").new()
+	docked_scene.get_node("ScrollContainer/VSplitContainer").add_child(workspace)
+	workspace.initialize(self, scene_actions)
+	# Entering the tree immediately starts session restoration and may emit
+	# state_changed synchronously. All controls must exist before that happens.
+	self.add_child(self.ion_session)
 
 
 func _exit_tree() -> void:
 	print("Disabled Cesium plugin")
+	asset_request_generation += 1
+	if self.ion_session != null:
+		self.ion_session.state_changed.disconnect(_on_ion_session_state_changed)
+		self.ion_session.authorization_failed.disconnect(_on_ion_authorization_failed)
+		self.ion_session.cancel_connection()
+		self.ion_session.free()
+		self.ion_session = null
 	if self.inspector_plugin != null:
 		remove_inspector_plugin(self.inspector_plugin)
 		self.inspector_plugin = null
+	if self.token_panel != null:
+		self.token_panel.free()
+		self.token_panel = null
+	self.token_panel_data = null
+	workspace = null
+	scene_actions = null
+	if self.cesium_builder_node != null:
+		self.cesium_builder_node.free()
+		self.cesium_builder_node = null
 	if self.docked_scene != null:
 		remove_control_from_docks(self.docked_scene)
 		self.docked_scene.free()
@@ -177,6 +202,10 @@ func on_connect_pressed() -> void:
 func on_sign_out_pressed():
 	self.ion_session.sign_out()
 	self.toggle_connected(false)
+	asset_request_generation += 1
+	if workspace != null:
+		workspace.ion_entries.clear()
+		workspace.refresh_entries()
 
 func _on_ion_session_state_changed(_state: int) -> void:
 	if self.ion_session == null:
@@ -193,13 +222,13 @@ func on_georef_checked(is_checked: bool) -> void:
 	self.cesium_builder_node.use_georeferences = is_checked
 
 func add_tileset():
-	self.cesium_builder_node.instantiate_tileset(CesiumAssetBuilder.TILESET_TYPE.Blank, "", "Blank")
+	scene_actions.add_asset("Tileset")
 
 func create_dynamic_camera():
-	self.cesium_builder_node.instantiate_dynamic_cam()
+	scene_actions.setup_scene(load("res://addons/cesium_godot/scripts/camera_controllers/CesiumDynamicCamera.gd"))
 
 func create_orbit_camera():
-	self.cesium_builder_node.instantiate_orbit_cam()
+	scene_actions.setup_scene(load("res://addons/cesium_godot/scripts/camera_controllers/CesiumOrbitCamera.gd"))
 
 func fetch_ion_asset_list():
 	if self.ion_session == null or not self.ion_session.is_connected:
@@ -223,49 +252,23 @@ func fetch_ion_asset_list():
 	
 	return by_type
 
-func make_button_container(type: String, entries: Array):
-	var foldable = BoxContainer.new()
-	# foldable.title = type
-	var margin = MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	margin.offset_top = 10
-	margin.offset_bottom = 10
-	margin.offset_left = 10
-	margin.offset_right = 10
-	var assets_list = VBoxContainer.new()
-	for entry in entries:
-		var hbox = HBoxContainer.new()
-		var label = Label.new()
-		label.text = str(entry.get("name", "Unnamed asset"))
-		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		label.size_flags_vertical = Control.SIZE_FILL
-		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		hbox.add_child(label)
-		var button = Button.new()
-		button.icon = get_editor_interface().get_base_control().get_theme_icon("Add", "EditorIcons")
-		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		button.set_meta("ion_name", str(entry.get("name", "Unnamed asset")))
-		button.pressed.connect(func():
-			self.cesium_builder_node.instantiate_tileset(
-				int(entry.get("id", 0)),
-				type,
-				str(entry.get("name", "Unnamed asset")),
-			)
-		)
-		button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		hbox.add_child(button)
-		assets_list.add_child(hbox)
-	margin.add_child(assets_list)
-	foldable.add_child(margin)
-	ion_button_holder.add_child(foldable)
-
 func add_ion_buttons() -> void:
+	if self.docked_scene == null:
+		return
+	asset_request_generation += 1
+	var request_generation := asset_request_generation
 	self.ion_button_holder = self.docked_scene.find_child("IonAssetButtonHolder") as Control
 	for child in self.ion_button_holder.get_children():
 		self.ion_button_holder.remove_child(child)
+		child.queue_free()
 	var available_assets = await fetch_ion_asset_list()
+	if request_generation != asset_request_generation or self.docked_scene == null:
+		return
 	self.set_process(true)
 	if available_assets == null:
 		return
-	for type in available_assets.keys():
-		make_button_container(type, available_assets[type])
+	if workspace != null:
+		workspace.ion_entries.clear()
+		for type in available_assets.keys():
+			workspace.ion_entries.append_array(available_assets[type])
+		workspace.refresh_entries()

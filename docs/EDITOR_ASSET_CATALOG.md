@@ -1,8 +1,8 @@
 # Editor asset catalogs
 
-> **Status:** parked foundation. The catalog model and its focused compatibility
-> test are complete, but it is intentionally not connected to the editor dock.
-> Runtime and Vanguard-facing work currently take priority.
+> **Status:** the editor dock can open local v1 catalog JSON files and search
+> their entries alongside ion assets. Remote catalog fetching is not implemented;
+> direct HTTP(S) tileset URLs are supported.
 
 `CesiumEditorAssetCatalog` is the credential-free data model for browsing local
 and private-server 3D Tiles sources in the Godot editor. It is intentionally
@@ -120,7 +120,7 @@ or filesystem), while a local editor file picker may create direct entries.
 
 This is an intentional limitation, not an unimplemented discovery fallback.
 
-The parked model has a credential-free focused test which can be run without
+The model has a credential-free focused test which can be run without
 enabling the editor plugin:
 
 ```bash

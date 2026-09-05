@@ -1,0 +1,370 @@
+From 28e4e32d20236817ce6d76afa2ce55215f21742a Mon Sep 17 00:00:00 2001
+From: brynnb <brynnb@users.noreply.github.com>
+Date: Sat, 5 Sep 2026 11:25:26 -0700
+Subject: [PATCH] Preserve ion accessor identity with per-tile cancellation
+
+---
+ .../src/CancellationAssetAccessor.h           | 51 ++++++++++++++++
+ .../src/CesiumIonTilesetLoader.cpp            | 14 ++++-
+ .../src/TilesetContentManager.cpp             | 42 +------------
+ .../test/TestTilesetContentManager.cpp        | 59 +++++++++++++++++++
+ .../CesiumAsync/CesiumIonAssetAccessor.h      | 16 ++++-
+ CesiumAsync/src/CesiumIonAssetAccessor.cpp    | 36 ++++++++---
+ 6 files changed, 165 insertions(+), 53 deletions(-)
+ create mode 100644 Cesium3DTilesSelection/src/CancellationAssetAccessor.h
+
+diff --git a/Cesium3DTilesSelection/src/CancellationAssetAccessor.h b/Cesium3DTilesSelection/src/CancellationAssetAccessor.h
+new file mode 100644
+index 000000000..99e8a52d4
+--- /dev/null
++++ b/Cesium3DTilesSelection/src/CancellationAssetAccessor.h
+@@ -0,0 +1,51 @@
++#pragma once
++
++#include <CesiumAsync/IAssetAccessor.h>
++#include <CesiumAsync/AsyncSystem.h>
++#include <atomic>
++#include <utility>
++
++namespace Cesium3DTilesSelection {
++// Bind cancellation to one load, never to a cached ion authorization session.
++class CancellationAssetAccessor final : public CesiumAsync::IAssetAccessor {
++public:
++  CancellationAssetAccessor(
++      std::shared_ptr<CesiumAsync::IAssetAccessor> pDelegate,
++      std::shared_ptr<const std::atomic_bool> pCancellationToken)
++      : _pDelegate(std::move(pDelegate)),
++        _options{std::move(pCancellationToken)} {}
++
++  CesiumAsync::Future<std::shared_ptr<CesiumAsync::IAssetRequest>> get(
++      const CesiumAsync::AsyncSystem& asyncSystem,
++      const std::string& url,
++      const std::vector<THeader>& headers) override {
++    return this->_pDelegate->getWithOptions(
++        asyncSystem,
++        url,
++        headers,
++        this->_options);
++  }
++
++  CesiumAsync::Future<std::shared_ptr<CesiumAsync::IAssetRequest>> request(
++      const CesiumAsync::AsyncSystem& asyncSystem,
++      const std::string& verb,
++      const std::string& url,
++      const std::vector<THeader>& headers,
++      const std::span<const std::byte>& contentPayload) override {
++    return this->_pDelegate->requestWithOptions(
++        asyncSystem,
++        verb,
++        url,
++        headers,
++        contentPayload,
++        this->_options);
++  }
++
++  void tick() noexcept override { this->_pDelegate->tick(); }
++
++private:
++  std::shared_ptr<CesiumAsync::IAssetAccessor> _pDelegate;
++  CesiumAsync::AssetRequestOptions _options;
++};
++
++} // namespace Cesium3DTilesSelection
+diff --git a/Cesium3DTilesSelection/src/CesiumIonTilesetLoader.cpp b/Cesium3DTilesSelection/src/CesiumIonTilesetLoader.cpp
+index 10ed2a843..d6768f631 100644
+--- a/Cesium3DTilesSelection/src/CesiumIonTilesetLoader.cpp
++++ b/Cesium3DTilesSelection/src/CesiumIonTilesetLoader.cpp
+@@ -1,4 +1,5 @@
+ #include "CesiumIonTilesetLoader.h"
++#include "CancellationAssetAccessor.h"
+ 
+ #include "LayerJsonTerrainLoader.h"
+ #include "TilesetJsonLoader.h"
+@@ -334,8 +335,13 @@ CesiumAsync::Future<TileLoadResult>
+ CesiumIonTilesetLoader::loadTileContent(const TileLoadInput& loadInput) {
+   this->_pLogger = loadInput.pLogger;
+ 
++  // Per-load cancellation wrappers have different identities and lifetimes.
++  // Keep token refresh on the stable accessor and bind cancellation above it.
++  const auto& pStableAccessor = loadInput.contentOptions.pSharedAssetAccessor
++      ? loadInput.contentOptions.pSharedAssetAccessor
++      : loadInput.pAssetAccessor;
+   if (this->_pTilesetAccessor == nullptr) {
+-    this->_pTilesetAccessor = loadInput.pAssetAccessor;
++    this->_pTilesetAccessor = pStableAccessor;
+     this->_pIonAccessor = std::make_shared<CesiumAsync::CesiumIonAssetAccessor>(
+         this->_pLogger,
+         this->_pTilesetAccessor,
+@@ -357,7 +363,7 @@ CesiumIonTilesetLoader::loadTileContent(const TileLoadInput& loadInput) {
+         });
+   }
+ 
+-  if (this->_pTilesetAccessor != loadInput.pAssetAccessor) {
++  if (this->_pTilesetAccessor != pStableAccessor) {
+     // CesiumIonTilesetLoader requires this method to be called with the same
+     // asset accessor instance every time.
+     CESIUM_ASSERT(false);
+@@ -369,7 +375,9 @@ CesiumIonTilesetLoader::loadTileContent(const TileLoadInput& loadInput) {
+       loadInput.tile,
+       loadInput.contentOptions,
+       loadInput.asyncSystem,
+-      this->_pIonAccessor,
++      std::make_shared<CancellationAssetAccessor>(
++          this->_pIonAccessor,
++          loadInput.contentOptions.requestOptions.pCancellationToken),
+       this->_pLogger,
+       loadInput.requestHeaders,
+       loadInput.ellipsoid);
+diff --git a/Cesium3DTilesSelection/src/TilesetContentManager.cpp b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+index 639fb7e74..36397fba5 100644
+--- a/Cesium3DTilesSelection/src/TilesetContentManager.cpp
++++ b/Cesium3DTilesSelection/src/TilesetContentManager.cpp
+@@ -1,4 +1,5 @@
+ #include "TilesetContentManager.h"
++#include "CancellationAssetAccessor.h"
+ 
+ #include "LayerJsonTerrainLoader.h"
+ #include "RasterOverlayUpsampler.h"
+@@ -89,47 +90,6 @@ using namespace CesiumUtility;
+ 
+ namespace Cesium3DTilesSelection {
+ namespace {
+-class CancellationAssetAccessor final : public CesiumAsync::IAssetAccessor {
+-public:
+-  CancellationAssetAccessor(
+-      std::shared_ptr<CesiumAsync::IAssetAccessor> pDelegate,
+-      std::shared_ptr<const std::atomic_bool> pCancellationToken)
+-      : _pDelegate(std::move(pDelegate)),
+-        _options{std::move(pCancellationToken)} {}
+-
+-  CesiumAsync::Future<std::shared_ptr<CesiumAsync::IAssetRequest>> get(
+-      const CesiumAsync::AsyncSystem& asyncSystem,
+-      const std::string& url,
+-      const std::vector<THeader>& headers) override {
+-    return this->_pDelegate->getWithOptions(
+-        asyncSystem,
+-        url,
+-        headers,
+-        this->_options);
+-  }
+-
+-  CesiumAsync::Future<std::shared_ptr<CesiumAsync::IAssetRequest>> request(
+-      const CesiumAsync::AsyncSystem& asyncSystem,
+-      const std::string& verb,
+-      const std::string& url,
+-      const std::vector<THeader>& headers,
+-      const std::span<const std::byte>& contentPayload) override {
+-    return this->_pDelegate->requestWithOptions(
+-        asyncSystem,
+-        verb,
+-        url,
+-        headers,
+-        contentPayload,
+-        this->_options);
+-  }
+-
+-  void tick() noexcept override { this->_pDelegate->tick(); }
+-
+-private:
+-  std::shared_ptr<CesiumAsync::IAssetAccessor> _pDelegate;
+-  CesiumAsync::AssetRequestOptions _options;
+-};
+-
+ struct RegionAndCenter {
+   CesiumGeospatial::BoundingRegion region;
+   CesiumGeospatial::Cartographic center;
+diff --git a/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp b/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp
+index fe8141ce8..4b7f08d60 100644
+--- a/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp
++++ b/Cesium3DTilesSelection/test/TestTilesetContentManager.cpp
+@@ -2,6 +2,8 @@
+ #include "TestTilesetJsonLoader.h"
+ #include "TilesetContentManager.h"
+ #include "TilesetJsonLoader.h"
++#include "CesiumIonTilesetLoader.h"
++#include "CancellationAssetAccessor.h"
+ 
+ #include <Cesium3DTilesContent/registerAllTileContentTypes.h>
+ #include <Cesium3DTilesSelection/GltfModifier.h>
+@@ -84,6 +86,63 @@ using namespace CesiumNativeTests;
+ using namespace CesiumRasterOverlays;
+ 
+ namespace {
++class IonCancellationProbe : public SimpleAssetAccessor {
++public:
++  IonCancellationProbe() : SimpleAssetAccessor({}) {}
++  std::vector<std::shared_ptr<const std::atomic_bool>> tokens;
++  CesiumAsync::Future<std::shared_ptr<CesiumAsync::IAssetRequest>>
++  getWithOptions(const CesiumAsync::AsyncSystem& asyncSystem,
++                 const std::string&, const std::vector<THeader>&,
++                 const CesiumAsync::AssetRequestOptions& options) override {
++    tokens.push_back(options.pCancellationToken);
++    return asyncSystem.createResolvedFuture(
++        std::shared_ptr<CesiumAsync::IAssetRequest>());
++  }
++};
++
++class IonRequestProbeLoader : public TilesetContentLoader {
++public:
++  CesiumAsync::Future<TileLoadResult>
++  loadTileContent(const TileLoadInput& input) override {
++    return input.pAssetAccessor->get(input.asyncSystem, "https://example.invalid/tile", {})
++        .thenImmediately([](std::shared_ptr<CesiumAsync::IAssetRequest>&&) {
++          TileLoadResult result;
++          result.state = TileLoadResultState::Success;
++          return result;
++        });
++  }
++  TileChildrenResult createTileChildren(const Tile&, const Ellipsoid&) override {
++    return {};
++  }
++};
++
++TEST_CASE("Ion tile loads retain stable identity and independent cancellation") {
++  CesiumAsync::AsyncSystem asyncSystem(std::make_shared<SimpleTaskProcessor>());
++  auto accessor = std::make_shared<IonCancellationProbe>();
++  CesiumIonTilesetLoader loader(
++      "https://example.invalid/endpoint", "test-token",
++      std::make_unique<IonRequestProbeLoader>(), {});
++  Tile tile(&loader);
++  auto first = std::make_shared<std::atomic_bool>(false);
++  auto second = std::make_shared<std::atomic_bool>(false);
++  for (const auto& token : {first, second}) {
++    TilesetContentOptions options;
++    options.pSharedAssetAccessor = accessor;
++    options.requestOptions.pCancellationToken = token;
++    TileLoadInput input{
++        tile, options, asyncSystem,
++        std::make_shared<CancellationAssetAccessor>(accessor, token),
++        spdlog::default_logger(), {}, Ellipsoid::WGS84};
++    CHECK(loader.loadTileContent(input).wait().state == TileLoadResultState::Success);
++    first->store(true);
++  }
++  REQUIRE(accessor->tokens.size() == 2);
++  CHECK(accessor->tokens[0] == first);
++  CHECK(accessor->tokens[1] == second);
++  CHECK(accessor->tokens[0]->load());
++  CHECK_FALSE(accessor->tokens[1]->load());
++}
++
+ std::filesystem::path testDataPath = Cesium3DTilesSelection_TEST_DATA_DIR;
+ 
+ class SimpleTilesetContentLoader : public TilesetContentLoader {
+diff --git a/CesiumAsync/include/CesiumAsync/CesiumIonAssetAccessor.h b/CesiumAsync/include/CesiumAsync/CesiumIonAssetAccessor.h
+index 54283d2e9..468db870b 100644
+--- a/CesiumAsync/include/CesiumAsync/CesiumIonAssetAccessor.h
++++ b/CesiumAsync/include/CesiumAsync/CesiumIonAssetAccessor.h
+@@ -24,7 +24,7 @@ class CesiumIonAssetAccessor
+     : public std::enable_shared_from_this<CesiumIonAssetAccessor>,
+       public IAssetAccessor {
+ public:
+-  /**
++  /** 
+    * @brief The details of the updated token.
+    */
+   struct UpdatedToken {
+@@ -72,6 +72,20 @@ public:
+    */
+   void tick() noexcept override;
+ 
++  Future<std::shared_ptr<IAssetRequest>> getWithOptions(
++      const AsyncSystem& asyncSystem,
++      const std::string& url,
++      const std::vector<THeader>& headers,
++      const AssetRequestOptions& options) override;
++
++  Future<std::shared_ptr<IAssetRequest>> requestWithOptions(
++      const AsyncSystem& asyncSystem,
++      const std::string& verb,
++      const std::string& url,
++      const std::vector<THeader>& headers,
++      const std::span<const std::byte>& contentPayload,
++      const AssetRequestOptions& options) override;
++
+   /**
+    * @brief Notifies this accessor that it's owner has been destroyed. When the
+    * owner is destroyed, the token will no longer be refreshed.
+diff --git a/CesiumAsync/src/CesiumIonAssetAccessor.cpp b/CesiumAsync/src/CesiumIonAssetAccessor.cpp
+index 8a0d78750..606febd6b 100644
+--- a/CesiumAsync/src/CesiumIonAssetAccessor.cpp
++++ b/CesiumAsync/src/CesiumIonAssetAccessor.cpp
+@@ -46,13 +46,21 @@ CesiumIonAssetAccessor::get(
+     const CesiumAsync::AsyncSystem& asyncSystem,
+     const std::string& url,
+     const std::vector<THeader>& headers) {
++  return this->getWithOptions(asyncSystem, url, headers, {});
++}
++
++Future<std::shared_ptr<IAssetRequest>> CesiumIonAssetAccessor::getWithOptions(
++    const AsyncSystem& asyncSystem,
++    const std::string& url,
++    const std::vector<THeader>& headers,
++    const AssetRequestOptions& options) {
+   // If token refresh is needed, this lambda will be called in the main thread
+   // so that it can safely use the tileset loader.
+   auto refreshToken =
+-      [pThis = this->shared_from_this()](
++      [pThis = this->shared_from_this(), options](
+           const CesiumAsync::AsyncSystem& asyncSystem,
+           std::shared_ptr<CesiumAsync::IAssetRequest>&& pRequest) {
+-        if (!pThis->_maybeUpdatedTokenCallback) {
++        if (!pThis->_maybeUpdatedTokenCallback || options.isCancellationRequested()) {
+           // The owner has been destroyed, so just return the
+           // original (failed) request.
+           return asyncSystem.createResolvedFuture(std::move(pRequest));
+@@ -80,11 +88,12 @@ CesiumIonAssetAccessor::get(
+                 currentAuthorizationHeaderValue,
+                 currentAccessTokenQueryParameterValue)
+             .thenImmediately([pThis,
+-                              asyncSystem,
++                              asyncSystem, options,
+                               pRequest = std::move(pRequest)](
+                                  const UpdatedToken& updatedToken) mutable {
+-              if (updatedToken.authorizationHeader.empty() &&
+-                  updatedToken.token.empty()) {
++              if (options.isCancellationRequested() ||
++                  (updatedToken.authorizationHeader.empty() &&
++                   updatedToken.token.empty())) {
+                 // Could not refresh the token, so just return the
+                 // original (failed) request.
+                 return asyncSystem.createResolvedFuture(std::move(pRequest));
+@@ -112,15 +121,15 @@ CesiumIonAssetAccessor::get(
+               std::vector<THeader> vecHeaders(
+                   std::make_move_iterator(headers.begin()),
+                   std::make_move_iterator(headers.end()));
+-              return pThis->get(asyncSystem, url, vecHeaders);
++              return pThis->getWithOptions(asyncSystem, url, vecHeaders, options);
+             });
+       };
+ 
+-  return this->_pAggregatedAccessor->get(asyncSystem, url, headers)
++  return this->_pAggregatedAccessor->getWithOptions(asyncSystem, url, headers, options)
+       .thenImmediately(
+           [asyncSystem, refreshToken = std::move(refreshToken)](
+               std::shared_ptr<CesiumAsync::IAssetRequest>&& pRequest) mutable {
+-            const CesiumAsync::IAssetResponse* pResponse = pRequest->response();
++            const CesiumAsync::IAssetResponse* pResponse = pRequest ? pRequest->response() : nullptr;
+             if (!pResponse) {
+               return asyncSystem.createResolvedFuture(std::move(pRequest));
+             }
+@@ -154,6 +163,17 @@ void CesiumIonAssetAccessor::tick() noexcept {
+   this->_pAggregatedAccessor->tick();
+ }
+ 
++Future<std::shared_ptr<IAssetRequest>> CesiumIonAssetAccessor::requestWithOptions(
++    const AsyncSystem& asyncSystem,
++    const std::string& verb,
++    const std::string& url,
++    const std::vector<THeader>& headers,
++    const std::span<const std::byte>& contentPayload,
++    const AssetRequestOptions& options) {
++  return this->_pAggregatedAccessor->requestWithOptions(
++      asyncSystem, verb, url, headers, contentPayload, options);
++}
++
+ void CesiumIonAssetAccessor::notifyOwnerIsBeingDestroyed() {
+   this->_maybeUpdatedTokenCallback.reset();
+ }
+-- 
+2.53.0
+
