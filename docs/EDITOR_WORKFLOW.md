@@ -37,3 +37,12 @@ installs it into a fresh isolated project, runs editor actions, saves the scene,
 and loads that saved scene in a second runtime process. CI runs this on Linux
 and Windows at both supported Godot endpoints. `--rendered` also saves a runtime
 screenshot; on Linux use a private X server such as `xvfb-run -a`.
+
+Resource defaults (`ellipsoid`, `point_cloud_shading`, `default_style`) are
+initialized when their nodes enter the scene tree. To configure one before
+`add_child`, construct and assign the resource explicitly; tree entry preserves
+it. This avoids storing instantiated resources in ClassDB's constructor defaults.
+
+The runtime test runner bounds each Godot invocation to 180 seconds (override
+with `GODOT_TEST_TIMEOUT_SECONDS`) and fails on GDScript errors even when the
+engine returns zero. Negative-test engine diagnostics remain permitted.

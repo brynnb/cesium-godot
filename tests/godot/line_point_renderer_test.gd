@@ -111,10 +111,16 @@ func _check_streamed_topologies() -> bool:
 	tileset.main_thread_loading_time_limit_ms = 0.1
 	# This must remain harmless for a point/line-only model.
 	tileset.create_physics_meshes = true
-	var shading: CesiumPointCloudShading = tileset.point_cloud_shading
+	# Resource defaults are created on tree entry, not in ClassDB's temporary
+	# constructor instance. Explicit pre-tree configuration must assign a resource.
+	var shading := CesiumPointCloudShading.new()
 	shading.attenuation = true
 	shading.geometric_error_scale = 2.0
+	tileset.point_cloud_shading = shading
 	georeference.add_child(tileset)
+	if tileset.point_cloud_shading != shading or not shading.attenuation:
+		_fail("Tree entry replaced explicitly configured point-cloud shading")
+		return false
 
 	var tile := await _pump_until_realized(tileset, camera)
 	if tile == null:

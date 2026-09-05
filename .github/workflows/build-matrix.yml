@@ -25,7 +25,7 @@ jobs:
           python-version: 3.11.9
       - name: Run fast source checks
         run: |
-          python -m unittest -q tests.test_dependency_lock tests.test_build_configuration
+          python -m unittest -q tests.test_dependency_lock tests.test_build_configuration tests.test_bounded_test
           python tests/validate_source_layout.py
 
   build:

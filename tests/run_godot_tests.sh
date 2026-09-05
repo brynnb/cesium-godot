@@ -43,59 +43,59 @@ trap cleanup EXIT
 
 mkdir -p "${import_dir}"
 cp "${project_dir}/extension_list.cfg" "${import_dir}/extension_list.cfg"
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://ion_editor_session_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://url_utility_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://lifecycle_streaming_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://true_origin_axis_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://geospatial_foundation_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://editor_resource_defaults_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://geojson_document_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://fly_to_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://cartographic_streaming_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://tile_exclusion_polygon_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://line_point_renderer_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://translucency_renderer_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://debug_color_overlay_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://compressed_content_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://structural_metadata_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://metadata_styling_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://gpu_instancing_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://bounds_queries_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://frustum_culling_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://occlusion_bridge_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://occlusion_engine_e2e_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://occlusion_tileset_e2e_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://multi_camera_selection_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://height_sampling_test.gd
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://shared_resource_accounting_test.gd
-XDG_DATA_HOME="${example_test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" \
+XDG_DATA_HOME="${example_test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" \
   --path "${example_dir}" -- --smoke-test
-XDG_DATA_HOME="${example_test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" \
+XDG_DATA_HOME="${example_test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" \
   --path "${example_dir}" -- --benchmark-route
 
 mkdir -p "${generated_dir}"
@@ -119,28 +119,28 @@ fi
 server_port="$(<"${port_file}")"
 CESIUM_TEST_SERVER_URL="http://127.0.0.1:${server_port}" \
 CESIUM_TEST_REQUEST_MARKER="${request_marker}" \
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://lod_continuity_test.gd
 CESIUM_TEST_SERVER_URL="http://127.0.0.1:${server_port}" \
 CESIUM_TEST_REQUEST_MARKER="${request_marker}" \
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://adversarial_lifecycle_test.gd
 CESIUM_TEST_SERVER_URL="http://127.0.0.1:${server_port}" \
 CESIUM_TEST_REQUEST_MARKER="${request_marker}" \
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://load_failure_retry_test.gd
 CESIUM_TEST_SERVER_URL="http://127.0.0.1:${server_port}" \
 CESIUM_TEST_REQUEST_MARKER="${request_marker}" \
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://raster_provider_test.gd
 CESIUM_TEST_SERVER_URL="http://127.0.0.1:${server_port}" \
 CESIUM_TEST_REQUEST_MARKER="${request_marker}" \
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://geocoder_service_test.gd
 CESIUM_TEST_SERVER_URL="http://127.0.0.1:${server_port}" \
 CESIUM_TEST_REQUEST_MARKER="${request_marker}" \
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://geojson_overlay_test.gd
 CESIUM_TEST_SERVER_URL="http://127.0.0.1:${server_port}" \
-XDG_DATA_HOME="${test_data_dir}" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
+XDG_DATA_HOME="${test_data_dir}" python3 "${repo_root}/tests/run_bounded_test.py" "${godot_bin}" --headless "${godot_args[@]}" --path "${project_dir}" \
   --script res://credits_attribution_test.gd
