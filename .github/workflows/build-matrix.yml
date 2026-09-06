@@ -288,6 +288,13 @@ jobs:
         if: matrix.suite == 'editor'
         shell: bash
         run: python tests/run_packaged_editor_test.py --godot "$GODOT_BIN"
+      - name: Preserve packaged editor process diagnostics
+        if: always() && matrix.suite == 'editor'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: packaged-editor-${{ matrix.platform }}-${{ matrix.version }}
+          path: build/test-results/packaged-editor
+          if-no-files-found: ignore
 
   managed:
     name: ${{ matrix.platform }} LibGodot C# tests

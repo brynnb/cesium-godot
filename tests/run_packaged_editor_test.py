@@ -4,9 +4,11 @@ Use --rendered under a private X server for a runtime screenshot. Output is kept
 for inspection; no source addon symlinks or developer import caches are used.
 """
 import argparse
+import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import tempfile
 import zipfile
@@ -18,7 +20,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--godot", default="godot4")
     parser.add_argument("--rendered", action="store_true")
+    parser.add_argument("--log-dir", type=Path, default=ROOT / "build/test-results/packaged-editor")
     args = parser.parse_args()
+    args.log_dir.mkdir(parents=True, exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix="cesium-packaged-editor-", dir="/var/tmp" if os.name != "nt" else None))
     project = stage / "tests/godot-editor"
     project.mkdir(parents=True)
@@ -40,9 +44,20 @@ def main():
         result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
         output = result.stdout + result.stderr
         (stage / (name + ".log")).write_text(output)
+        (args.log_dir / (name + ".log")).write_text(output)
+        report = {
+            "exit_code": result.returncode,
+            "signal": signal.Signals(-result.returncode).name if os.name != "nt" and result.returncode < 0 else None,
+            "success_marker_found": marker in output,
+            "engine_errors_found": "ERROR:" in output,
+        }
+        (args.log_dir / (name + ".json")).write_text(json.dumps(report, indent=2))
         if result.returncode or marker not in output or "SCRIPT ERROR:" in output or "ERROR:" in output:
             print(output, flush=True)
-            raise RuntimeError(f"{name} failed; inspect {stage / (name + '.log')}")
+            raise RuntimeError(
+                f"{name} failed: {json.dumps(report)}; "
+                f"inspect {stage / (name + '.log')}"
+            )
 
     run("editor", [args.godot, "--headless", "--editor", "--path", str(project), "--quit-after", "1200", "--", "--save-workflow"], "Cesium editor scene actions and serialization passed")
     # This second engine process must deserialize the actual editor-saved scene.
