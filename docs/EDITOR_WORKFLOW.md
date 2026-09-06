@@ -33,8 +33,14 @@ The editor test suite checks insertion, undo/redo, scene serialization, dock
 cleanup, ordinary-camera local streaming, and OAuth against a local test server.
 
 `python tests/run_packaged_editor_test.py --godot /path/to/godot` constructs a ZIP,
-installs it into a fresh isolated project, runs editor actions, saves the scene,
-and loads that saved scene in a second runtime process. CI runs this on Linux
+installs it into a fresh isolated project, runs editor actions with cold and warm
+help caches, saves the scene, and loads that saved scene in a separate runtime
+process. The probe initializes help through Godot's public API and dispatches
+pending documentation callbacks before quitting. This avoids the Godot 4.7.2
+warm-cache shutdown race where deferred extension documentation generation runs
+after the help database is destroyed. Process failures still fail the test;
+logs and exit diagnostics are retained under `build/test-results/packaged-editor`.
+CI runs this on Linux
 and Windows at both supported Godot endpoints. `--rendered` also saves a runtime
 screenshot; on Linux use a private X server such as `xvfb-run -a`.
 

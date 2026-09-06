@@ -39,6 +39,10 @@ def main():
     shutil.copytree(ROOT / "examples/lifecycle_material_demo/fixtures", stage / "examples/lifecycle_material_demo/fixtures")
     env = os.environ.copy()
     env["XDG_DATA_HOME"] = str(stage / "userdata")
+    env["XDG_CACHE_HOME"] = str(stage / "cache")
+    if os.name == "nt":
+        env["APPDATA"] = str(stage / "userdata")
+        env["LOCALAPPDATA"] = str(stage / "cache")
 
     def run(name, command, marker):
         result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
@@ -60,6 +64,11 @@ def main():
             )
 
     run("editor", [args.godot, "--headless", "--editor", "--path", str(project), "--quit-after", "1200", "--", "--save-workflow"], "Cesium editor scene actions and serialization passed")
+    # Keep the user help cache but discard this temporary project's import cache.
+    # This reproduces opening a fresh ZIP install after another editor project,
+    # not merely reopening an already-imported project (which hid the race).
+    shutil.rmtree(project / ".godot")
+    run("editor-warm", [args.godot, "--headless", "--editor", "--path", str(project), "--quit-after", "1200", "--", "--save-workflow"], "Cesium editor scene actions and serialization passed")
     # This second engine process must deserialize the actual editor-saved scene.
     command = [args.godot, "--path", str(project), "res://saved.tscn", "--quit-after", "6000"]
     if not args.rendered:

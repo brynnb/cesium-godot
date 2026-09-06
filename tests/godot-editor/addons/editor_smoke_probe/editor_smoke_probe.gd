@@ -42,6 +42,15 @@ func _fail(message: String) -> void:
 	get_tree().quit(1)
 
 func _check_scene_and_cleanup(dock: Control) -> void:
+	# Filesystem scanning finishing does not mean editor help has finished loading.
+	# On 4.7.2 a warm help-cache worker queues extension-doc generation; quitting
+	# first can run that callback after EditorHelp::cleanup_doc deletes its database.
+	# The public help API joins that worker. Yield to dispatch its queued work
+	# before exercising extension help and eventually shutting down the editor.
+	get_editor_interface().get_script_editor().goto_help("class_name:Node")
+	await get_tree().process_frame
+	get_editor_interface().get_script_editor().goto_help("class_name:Cesium3DTileset")
+	await get_tree().process_frame
 	get_editor_interface().open_scene_from_path("res://camera_scene.tscn")
 	await get_tree().process_frame
 	var scene := get_editor_interface().get_edited_scene_root()
